@@ -28,6 +28,8 @@ from linebot.v3.webhooks import (
     AudioMessageContent
 )
 from openai import OpenAI
+from notion_client import Client
+from datetime import datetime
 import tempfile
 
 # 載入環境變數
@@ -39,6 +41,8 @@ app = FastAPI()
 channel_secret = os.getenv('LINE_CHANNEL_SECRET')
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 openai_api_key = os.getenv('OPENAI_API_KEY')
+notion_api_key = os.getenv('NOTION_API_KEY')
+notion_database_id = os.getenv('NOTION_DATABASE_ID')
 
 if channel_secret is None or channel_access_token is None:
     print('請在 .env 檔案中設定 LINE_CHANNEL_SECRET 與 LINE_CHANNEL_ACCESS_TOKEN')
@@ -50,6 +54,7 @@ if openai_api_key is None:
 configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+notion = Client(auth=notion_api_key) if notion_api_key else None
 
 @app.post("/callback")
 async def callback(request: Request):
@@ -69,6 +74,45 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     return 'OK'
+
+def summarize_text(text):
+    if not client:
+        return ""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": f"請幫我摘要這段語音轉出的文字，抓出重點：\n\n{text}"}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error summarizing text: {e}")
+        return ""
+
+def save_to_notion(text, summary):
+    if not notion or not notion_database_id:
+        print("Notion setup incomplete, skipping save.")
+        return
+
+    current_time = datetime.now().isoformat()
+    title = f"語音筆記 [{datetime.now().strftime('%Y-%m-%d %H:%M')}]"
+
+    try:
+        notion.pages.create(
+            parent={"database_id": notion_database_id},
+            properties={
+                "Name": {"title": [{"text": {"content": title}}]},
+                "內容": {"rich_text": [{"text": {"content": text}}]},
+                "摘要": {"rich_text": [{"text": {"content": summary}}]},
+                "時間": {"date": {"start": current_time, "end": None}},
+                "類型": {"select": {"name": "語音筆記"}}
+            }
+        )
+        print("Successfully saved to Notion")
+    except Exception as e:
+        print(f"Failed to save to Notion: {e}")
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
@@ -114,12 +158,22 @@ def handle_audio_message(event):
                     language="zh",
                     prompt="以下是繁體中文的對話內容："
                 )
+
+        # 儲存到 Notion
+        if transcript and transcript.text:
+            summary = summarize_text(transcript.text)
+            save_to_notion(transcript.text, summary)
+            
+            # 回覆內容包含摘要
+            reply_text = f"【辨識結果】\n{transcript.text}\n\n【AI 摘要】\n{summary}"
+        else:
+            reply_text = "無法辨識語音內容。"
         
         # 3. 回傳辨識結果
         line_messaging_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=transcript.text)]
+                messages=[TextMessage(text=reply_text)]
             )
         )
 

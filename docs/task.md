@@ -37,3 +37,31 @@
     - [x] 使用 `MessagingApiBlob` 下載語音內容 <!-- id: 13 -->
     - [x] 整合 OpenAI Whisper API <!-- id: 14 -->
 - [x] 驗證功能是否正常 <!-- id: 15 -->
+
+---
+
+# Notion 整合任務 (新增於 2025-12-25)
+
+- [x] 新增 `notion-client` 依賴
+- [x] 在 `.env` 中設定 Notion API Key 和 Database ID
+- [x] 更新 `app.py`
+    - [x] 匯入 `notion_client`
+    - [x] 實作 `save_to_notion` 函式
+    - [x] 在語音處理流程中呼叫 Notion 儲存功能
+- [x] 驗證功能
+
+---
+
+# Notion 整合功能增強 (新增於 2025-12-26)
+
+- [ ] 更新 Notion 資料庫 schema (需使用者手動操作)
+    - [x] 新增 `內容` (Text/Rich Text) 欄位
+    - [x] 新增 `摘要` (Text/Rich Text) 欄位
+    - [x] 新增 `時間` (Date) 欄位
+    - [x] 新增 `類型` (Select) 欄位，並新增選項 `語音筆記`
+- [x] 更新 `app.py`
+    - [x] 新增 `summarize_text` 函式 (OpenAI)
+    - [x] 更新 `save_to_notion` 函式以支援新欄位
+    - [x] 在 `handle_audio_message` 中整合摘要與儲存流程
+- [x] 驗證功能
+

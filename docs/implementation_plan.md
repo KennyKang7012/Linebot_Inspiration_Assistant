@@ -141,3 +141,107 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 1. 啟動 `uvicorn app:app --reload`。
 2. 在 LINE Bot 中傳送一段語音訊息。
 3. 確認 Bot 是否回傳正確的文字內容。
+
+---
+
+# Notion 整合計畫 (新增於 2025-12-25)
+
+本計畫描述如何整合 Notion API 以儲存語音訊息轉出的文字。
+
+## 需要使用者審查
+
+> [!IMPORTANT]
+> 您需要提供 **Notion Integration Token** (API Key) 和 **Database ID**。
+> 1. 請至 [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations) 建立整合。
+> 2. 將目標資料庫分享給該整合。
+> 3. 複製 "Internal Integration Token" 和 Database ID (從資料庫網址取得)。
+
+## 建議變更
+
+### 設定
+#### [MODIFY] [.env.example](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env.example)
+- 新增 `NOTION_API_KEY`
+- 新增 `NOTION_DATABASE_ID`
+
+### 依賴項目
+- 在 `pyproject.toml` 中新增 `notion-client` (透過 `uv add notion-client`)
+
+### 程式碼變更
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+- 從 `notion_client` 匯入 `Client`。
+- 使用環境變數初始化 Notion client。
+- 建立輔助函式 `save_to_notion(text: str)`：
+    - 在指定資料庫中建立新頁面。
+    - 將標題 (或文字屬性) 設定為轉錄的文字。
+    - 選擇性加入時間戳記或標籤。
+- 更新 `handle_audio_message`：
+    - 在 `client.audio.transcriptions.create` 成功回傳後，呼叫 `save_to_notion(transcript.text)`。
+    - 優雅地處理潛在錯誤 (如 Notion API 失敗)，確保使用者仍能收到回覆。
+
+## 驗證計畫
+
+### 自動化測試
+- 此小功能暫無自動化測試計畫。
+
+### 手動驗證
+1.  **環境設定**：在 `.env` 中加入真實的金鑰。
+2.  **發送語音訊息**：向 Line 機器人發送語音訊息。
+3.  **檢查 Line**：確認機器人回覆文字內容。
+4.  **檢查 Notion**：確認 Notion 資料庫中出現包含正確文字的新頁面。
+
+---
+
+# Notion 整合功能增強 (2025-12-26)
+
+本計畫詳述如何增強 Notion 整合功能，加入摘要、時間戳記與分類標籤。
+
+## 需要使用者審查
+
+> [!IMPORTANT]
+> **資料庫 Schema 更新需求**
+> 請務必至 Notion 資料庫新增以下欄位 (大小寫需完全一致)：
+> 1.  **內容** (Text / Rich Text): 儲存完整轉錄文字。
+> 2.  **摘要** (Text / Rich Text): 儲存 AI 產生的摘要。
+> 3.  **時間** (Date): 儲存訊息時間。
+> 4.  **類型** (Select): 儲存類型標籤。請新增選項「語音筆記」。
+> 5.  **Name** (Title): 將儲存自動生成的標題 (例如：「語音筆記 [YYYY-MM-DD HH:MM]」)。
+
+## 建議變更
+
+### 程式碼變更
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+
+1.  **新增 `summarize_text(text: str) -> str`**:
+    -   呼叫 OpenAI Chat Completion API (如 `gpt-4o-mini` 或 `gpt-3.5-turbo`) 進行摘要。
+    -   Prompt: "請幫我摘要這段語音轉出的文字，抓出重點："
+
+2.  **更新 `save_to_notion(text: str, summary: str)`**:
+    -   接收 `summary` 參數。
+    -   取得目前 ISO 格式時間。
+    -   建構 Notion payload 以填入：
+        -   `Name`: "語音筆記 [YYYY-MM-DD HH:MM]"
+        -   `內容`: `text`
+        -   `摘要`: `summary`
+        -   `時間`: 當前時間
+        -   `類型`: "語音筆記"
+
+3.  **更新 `handle_audio_message`**:
+    -   轉錄完成後，呼叫 `summarize_text`。
+    -   呼叫 `save_to_notion(transcript.text, summary)`。
+
+## 驗證計畫
+
+### 手動驗證
+1.  **更新 Schema**: 使用者手動在 Notion 新增欄位。
+2.  **發送語音訊息**: 發送語音訊息。
+3.  **驗證**: 檢查 Notion 是否出現包含所有正確填入欄位的新資料。
+
+---
+
+# 實作完成通知 (2025-12-26)
+
+本專案的所有功能需求（Line Echo Bot、SSL 修復、語音轉文字、Notion 整合、AI 自動摘要）均已實作並驗證完成。
+
+- **目前狀態**: 已部署並可正常運行。
+- **維護建議**: 如需更改摘要邏輯，可調整 `app.py` 中的 `summarize_text` 提示詞。
+
