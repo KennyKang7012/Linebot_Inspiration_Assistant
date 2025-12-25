@@ -95,3 +95,47 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 1. 啟動伺服器：`uv run uvicorn app:app --reload`。
 2. 傳送語音訊息給 Bot。
 3. 確認 Bot 是否正確回傳辨識後的文字。
+
+---
+
+# 實作紀錄 - 公開網址配置 (ngrok) (新增於 2025-12-26)
+
+為了解決 VS Code 內建 Port Forwarding 在 macOS 環境可能遇到的 `ENOENT` 錯誤，並順利將本地伺服器公開給 LINE Platform 存取，我們採用了 `ngrok` 方案。
+
+## 遇到的問題
+
+1.  **VS Code Port Forwarding 失敗**: 嘗試使用 `remote.forwardPorts` 設定時，出現 `spawn /Applications/Antigravity.app/Contents/Resources/app/bin/code-tunnel ENOENT` 錯誤。
+2.  **SSL 憑證錯誤**: `pyngrok` 在首次執行嘗試下載 ngrok binary 時，因 macOS Python 的 SSL 憑證問題出現 `SSL: CERTIFICATE_VERIFY_FAILED`。
+
+## 解決方案
+
+### 1. 建立自動化啟動腳本
+我們建立了 `run_with_ngrok.py`，整合了伺服器啟動與通道建立的流程：
+- 自動啟動 `ngrok` HTTP 通道指向 8000 埠。
+- 顯示公開的 Webhook URL。
+- 啟動 `uvicorn` 伺服器。
+
+### 2. 修復 SSL 憑證問題
+在 `run_with_ngrok.py` 中加入了與 `app.py` 相同的 `certifi` 修復代碼：
+```python
+import certifi
+import os
+os.environ['SSL_CERT_FILE'] = certifi.where()
+```
+
+## 使用說明
+
+現在啟動專案請使用以下指令（取代原本的 `uv run uvicorn...`）：
+
+```bash
+uv run run_with_ngrok.py
+```
+
+### 執行後步驟
+1.  終端機會顯示類似以下的資訊：
+    ```
+    * ngrok tunnel "https://xxxx-xx-xx-xx.ngrok-free.app" -> "http://127.0.0.1:8000"
+    * Webhook URL: https://xxxx-xx-xx-xx.ngrok-free.app/callback
+    ```
+2.  複製 `Webhook URL`。
+3.  前往 LINE Developers Console，貼上網址並點擊 **Verify**。
