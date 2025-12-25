@@ -60,3 +60,38 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 
 > [!NOTE]
 > 這個錯誤是因為 macOS 上的 Python 預設 SSL 函式庫無法直接存取系統的根憑證。透過 `certifi.where()` 明確指定憑證路徑可以解決此問題。
+
+---
+
+# 實作紀錄 - 語音轉文字功能 (OpenAI Whisper) (新增於 2025-12-25)
+
+我已經成功實作了語音轉文字功能，讓 LINE Bot 能夠將收到的語音訊息轉換為文字後回傳。
+
+## 修改內容
+
+### 1. 依賴項目更新
+- 新增了 `openai` 套件。
+
+### 2. 核心程式碼變更
+- **[app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)**:
+    - 引入了 `MessagingApiBlob` 與 `AudioMessageContent`。
+    - 實作了 `handle_audio_message` 處理器，直接回傳辨識出的文字。
+    - 使用 `tempfile` 暫存下載的語音內容。
+    - 呼叫 OpenAI Whisper API (`whisper-1` 模型) 進行識別，並加入 `language` 與 `prompt` 參數優化為繁體中文輸出。
+
+### 3. 環境變數
+- **[.env.example](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env.example)**:
+    - 新增了 `OPENAI_API_KEY` 的範例設定。
+
+## 驗證結果
+
+### 程式碼靜態檢查
+- [x] 語法檢查通過。
+- [x] 邏輯流程與實作計畫一致。
+
+### 手動驗證步驟 (待執行)
+> [!IMPORTANT]
+> 請在 `.env` 中填入正確的 `OPENAI_API_KEY`。
+1. 啟動伺服器：`uv run uvicorn app:app --reload`。
+2. 傳送語音訊息給 Bot。
+3. 確認 Bot 是否正確回傳辨識後的文字。
