@@ -1,5 +1,10 @@
 import os
 import sys
+import certifi
+
+# Fix SSL certificate verification error on macOS
+os.environ['SSL_CERT_FILE'] = certifi.where()
+
 from fastapi import FastAPI, Request, HTTPException
 from dotenv import load_dotenv
 
