@@ -65,3 +65,21 @@
     - [x] 在 `handle_audio_message` 中整合摘要與儲存流程
 - [x] 驗證功能
 
+---
+
+# 文字摘要與 Notion 整合優化 (新增於 2025-12-27)
+
+- [x] 規劃開發文件與系統設計 (PLANNING)
+    - [x] 建立並更新 `task.md` 與 `implementation_plan.md`
+    - [x] 設計 `/a` 指令偵測邏輯
+    - [x] 設計 Notion 頁面內容 (Children) 寫入邏輯
+- [x] 實作文字摘要指令功能 (EXECUTION)
+    - [x] 修改 `handle_message` 以支援指令辨識
+    - [x] 實作 `summarize_text` 調用 OpenAI API
+- [x] 優化 Notion 存檔機制 (EXECUTION)
+    - [x] 修改 `save_to_notion` 函數
+    - [x] 將原始內容寫入 Notion 頁面子區塊 (Page Content)
+- [x] 驗證與測試 (VERIFICATION)
+    - [x] 測試 `/a` 指令是否正確觸發
+    - [x] 驗證 Notion 頁面內容是否包含長文字
+    - [x] 更新 `walkthrough.md` 展示成果

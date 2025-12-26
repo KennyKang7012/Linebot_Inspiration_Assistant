@@ -245,3 +245,37 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 - **目前狀態**: 已部署並可正常運行。
 - **維護建議**: 如需更改摘要邏輯，可調整 `app.py` 中的 `summarize_text` 提示詞。
 
+---
+
+# 文字摘要指令與 Notion 整合優化計畫 (新增於 2025-12-27)
+
+本計畫旨在為 LINE Bot 增加 `/a` 指令支援，當使用者傳送以 `/a` 開頭的文字時，系統會自動總結內容並存入 Notion。同時，為了解決 Notion 屬性欄位（Property）的字數限制，我們將原始內容改為存放在 Notion 的「頁面內容（Page Content）」中。
+
+## 使用者建議 / 關鍵設計決策
+
+> [!IMPORTANT]
+> **Notion 長度限制解決方案**：Notion 的 `rich_text` 屬性欄位有 2000 字元的限制。我們將改用 `children` 參數在建立頁面時直接寫入內容區塊，這樣可以支援更長的文本。
+
+## 擬議變更
+
+### Line Bot 應用程式 (`app.py`)
+
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+
+- **指令辨識**：在 `handle_message` 函數中加入邏輯，判斷訊息是否以 `/a` (不分大小寫) 開頭。
+- **摘要邏輯**：如果是指令訊息，則呼叫 `summarize_text` 取得摘要。
+- **Notion 整合優化**：
+    - 修改 `save_to_notion` 函數，接受 `note_type` 參數（預設為 "語音筆記"，若為指令則傳入 "文字摘要"）。
+    - 移除 `properties` 中的 `內容` 欄位。
+    - 在 `notion.pages.create` 中加入 `children` 參數，將原始內容以 `paragraph` 或 `code` 區塊形式寫入頁面。
+- **回覆邏輯**：在 LINE 中回傳摘要結果給使用者。
+
+## 驗證計畫
+
+### 手動驗證步驟
+1. **指令測試**：傳送 `/a 這是一段測試文字` 至 LINE Bot，確認是否收到摘要回覆。
+2. **長文字測試**：傳送一段超過 2000 字的文字（附帶 `/a` 指令），確認 Notion 頁面是否成功建立且內容完整。
+3. **Notion 確認**：
+    - 確認「類型」屬性是否正確（文字摘要 vs 語音筆記）。
+    - 確認原始內容出現在 Notion 頁面的正文區（而不是屬性欄位）。
+    - 確認摘要仍保留在屬性欄位。

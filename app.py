@@ -91,24 +91,57 @@ def summarize_text(text):
         print(f"Error summarizing text: {e}")
         return ""
 
-def save_to_notion(text, summary):
+def save_to_notion(text, summary, note_type="語音筆記"):
     if not notion or not notion_database_id:
         print("Notion setup incomplete, skipping save.")
         return
 
     current_time = datetime.now().isoformat()
-    title = f"語音筆記 [{datetime.now().strftime('%Y-%m-%d %H:%M')}]"
+    title = f"{note_type} [{datetime.now().strftime('%Y-%m-%d %H:%M')}]"
 
     try:
+        # 將長文字拆分成多個區塊（Notion 單個區塊限制為 2000 字元，雖然正文可以有很多區塊）
+        # 這裡我們簡單處理，如果真的超級長再細分，目前先以單一 paragraph 寫入
+        children = [
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {"rich_text": [{"text": {"content": "原始內容"}}]}
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {"content": text[:2000]} # 安全起見先截斷，若要支援更長需循環建立 block
+                        }
+                    ]
+                }
+            }
+        ]
+        
+        # 如果超過 2000 字，追加後續區塊
+        if len(text) > 2000:
+            for i in range(2000, len(text), 2000):
+                children.append({
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [{"type": "text", "text": {"content": text[i:i+2000]}}]
+                    }
+                })
+
         notion.pages.create(
             parent={"database_id": notion_database_id},
             properties={
                 "Name": {"title": [{"text": {"content": title}}]},
-                "內容": {"rich_text": [{"text": {"content": text}}]},
                 "摘要": {"rich_text": [{"text": {"content": summary}}]},
                 "時間": {"date": {"start": current_time, "end": None}},
-                "類型": {"select": {"name": "語音筆記"}}
-            }
+                "類型": {"select": {"name": note_type}}
+            },
+            children=children
         )
         print("Successfully saved to Notion")
     except Exception as e:
@@ -116,12 +149,28 @@ def save_to_notion(text, summary):
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    text = event.message.text.strip()
+    
+    # 檢查是否包含指令 /a
+    if text.lower().startswith("/a"):
+        # 移除指令部分取得純文本
+        content = text[2:].strip()
+        if not content:
+            reply_text = "請在 -a 後方輸入要摘要的文字。"
+        else:
+            summary = summarize_text(content)
+            save_to_notion(content, summary, note_type="文字摘要")
+            reply_text = f"【AI 摘要】\n{summary}"
+    else:
+        # 一般訊息處理 (Echo)
+        reply_text = text
+
     with ApiClient(configuration) as api_client:
         line_messaging_api = MessagingApi(api_client)
         line_messaging_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=event.message.text)]
+                messages=[TextMessage(text=reply_text)]
             )
         )
 
@@ -162,7 +211,7 @@ def handle_audio_message(event):
         # 儲存到 Notion
         if transcript and transcript.text:
             summary = summarize_text(transcript.text)
-            save_to_notion(transcript.text, summary)
+            save_to_notion(transcript.text, summary, note_type="語音筆記")
             
             # 回覆內容包含摘要
             reply_text = f"【辨識結果】\n{transcript.text}\n\n【AI 摘要】\n{summary}"

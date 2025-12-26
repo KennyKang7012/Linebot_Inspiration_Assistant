@@ -1,47 +1,66 @@
 # Linebot Inspiration Assistant
 
-一個基於 Python 3.11.7 實作的基礎 Line Echo Bot，使用現代化的 `uv` 與 FastAPI 進行開發。
+一個基於 Python 3.11.7 實作的靈感助手 Line Bot，具備語音辨識、AI 摘要與 Notion 自動同步功能。
+
+## ✨ 功能亮點
+
+- **語音轉文字**：整合 OpenAI Whisper API，自動將語音訊息轉換為繁體中文。
+- **AI 自動摘要**：使用 GPT-4o-mini 對長文本或語音內容進行重點擷取。
+- **Notion 雲端同步**：自動將原始內容與 AI 摘要同步至 Notion 資料庫。
+- **文字摘要指令**：支援在 LINE 中輸入 `/a` 指令快速總結文字資訊。
+- **長文本優化**：自動處理 Notion 2000 字元限制，將長內容完整寫入頁面正文區。
 
 ## 🚀 快速開始
 
 ### 1. 前置作業
 - 確保已安裝 [uv](https://github.com/astral-sh/uv)。
-- 擁有一個 Line Messaging API 的 Channel（包含 Channel Secret 與 Channel Access Token）。
+- 擁有 Line Messaging API 憑證 (Channel Secret, Access Token)。
+- 擁有 OpenAI API Key。
+- 擁有 Notion API Key 與目標 Database ID。
 
 ### 2. 環境設定
-編輯專案根目錄下的 `.env` 檔案並填入您的憑證：
+編輯專案根目錄下的 `.env` 檔案：
 ```text
-LINE_CHANNEL_SECRET=您的_Channel_Secret
-LINE_CHANNEL_ACCESS_TOKEN=您的_Channel_Access_Token
+LINE_CHANNEL_SECRET=...
+LINE_CHANNEL_ACCESS_TOKEN=...
+OPENAI_API_KEY=...
+NOTION_API_KEY=...
+NOTION_DATABASE_ID=...
 ```
 
-### 3. 安裝與執行
-使用 `uv` 自動安裝依賴並啟動伺服器：
+### 3. 使用方法
+- **語音筆記**：直接對 Bot 傳送語音訊息，系統會自動辨識、摘要並存入 Notion。
+- **文字摘要**：傳送 `/a [要摘要的文字]`，系統會回傳摘要並存入 Notion。
+
+### 4. 啟動服務
+
+本專案提供兩種啟動方式，您可以依據開發環境需求選擇：
+
+#### 方法 A：手動啟動 (標準方式)
+適合已有固定 Webhook URL 或使用其他轉發工具的使用者：
 ```bash
 uv run uvicorn app:app --reload
 ```
-伺服器將預設在 `http://127.0.0.1:8000` 啟動。
+伺服器將在 `http://127.0.0.1:8000` 啟動。啟動後需自行處理 Webhook 穿透。
 
-### 4. Webhook 設定
-使用 `ngrok` 或其他工具將本地端服務暴露：
+#### 方法 B：自動化啟動 (推薦用於本地開發)
+適合需要自動建立 ngrok 通道的開發環境，會自動顯示 Webhook URL：
 ```bash
-ngrok http 8000
+uv run run_with_ngrok.py
 ```
-將產生的 URL 後方加上 `/callback`（例如 `https://xxxx.ngrok-free.app/callback`），設定為 Line Developers Console 中的 Webhook URL。
 
 ## 📂 專案結構
-- `app.py`: Line Echo Bot 核心邏輯 (FastAPI 實作)。
-- `.env`: 環境變數設定。
-- `pyproject.toml`: `uv` 專案配置與依賴 (指定 Python 3.11.7)。
-- `docs/`: 開發文件與提示詞模板。
-    - `prompt_template.md`: 專案設計提示詞。
-    - `implementation_plan.md`: 實作計畫。
-    - `walkthrough.md`: 詳細實作紀錄。
+- `app.py`: 核心邏輯 (FastAPI)。
+- `run_with_ngrok.py`: 自動化 ngrok 通道與伺服器啟動腳本。
+- `docs/`:
+    - `prompt_template.md`: 提示詞規格模板。
+    - `implementation_plan.md`: 實作計畫與變更細節。
+    - `walkthrough.md`: 成果展示與詳細實作紀錄。
     - `task.md`: 任務追蹤清單。
 
 ## 🛠 使用技術
 - **Language**: Python 3.11.7
+- **AI Platform**: OpenAI (Whisper, GPT-4o-mini)
+- **Database**: Notion API
 - **Manager**: [uv](https://github.com/astral-sh/uv)
-- **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
-- **ASGI Server**: [Uvicorn](https://www.uvicorn.org/)
-- **SDK**: [line-bot-sdk-python](https://github.com/line/line-bot-sdk-python)
+- **Framework**: FastAPI + Uvicorn
