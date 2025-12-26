@@ -156,7 +156,7 @@ def handle_message(event):
         # 移除指令部分取得純文本
         content = text[2:].strip()
         if not content:
-            reply_text = "請在 -a 後方輸入要摘要的文字。"
+            reply_text = "請在 /a 後方輸入要摘要的文字。"
         else:
             summary = summarize_text(content)
             save_to_notion(content, summary, note_type="文字摘要")
