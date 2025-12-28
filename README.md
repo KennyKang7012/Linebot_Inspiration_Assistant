@@ -57,6 +57,7 @@ uv run run_with_ngrok.py
     - `implementation_plan.md`: 實作計畫與變更細節。
     - `walkthrough.md`: 成果展示與詳細實作紀錄。
     - `task.md`: 任務追蹤清單。
+    - `troubleshooting.md`: 疑難排解與常見問題紀錄。
 
 ## 🛠 使用技術
 - **Language**: Python 3.11.7
