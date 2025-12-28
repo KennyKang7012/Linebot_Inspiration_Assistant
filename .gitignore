@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# Credentials and private scripts
+token.json
+credentials.json

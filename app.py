@@ -25,15 +25,30 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
-    AudioMessageContent
+    AudioMessageContent,
+    ImageMessageContent
 )
 from openai import OpenAI
 from notion_client import Client
 from datetime import datetime
 import tempfile
+import io
+import base64
+import pytz
+import re
+import trafilatura
+
+# 設定時區為台灣
+TW_TIMEZONE = pytz.timezone('Asia/Taipei')
+# Google Drive API 相關匯入
+from google.auth.transport.requests import Request as GoogleRequest
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # 載入環境變數
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI()
 
@@ -43,18 +58,102 @@ channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 openai_api_key = os.getenv('OPENAI_API_KEY')
 notion_api_key = os.getenv('NOTION_API_KEY')
 notion_database_id = os.getenv('NOTION_DATABASE_ID')
+google_drive_folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1yeIYLXlEhDACEqARMWBfBUJpzlYFgPHy')
+allowed_line_id = os.getenv('ALLOWED_LINE_ID')
+
+# Google Drive 權限範圍
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 if channel_secret is None or channel_access_token is None:
     print('請在 .env 檔案中設定 LINE_CHANNEL_SECRET 與 LINE_CHANNEL_ACCESS_TOKEN')
     sys.exit(1)
 
-if openai_api_key is None:
-    print('警告：未設定 OPENAI_API_KEY，語音辨識功能將無法運作。')
-
 configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 notion = Client(auth=notion_api_key) if notion_api_key else None
+
+def is_allowed(user_id):
+    """檢查使用者是否在白名單中"""
+    if not allowed_line_id:
+        return True  # 若未設定則預設允許 (或可改為 False 增加安全性)
+    return user_id == allowed_line_id
+
+def get_drive_service():
+    """獲取 Google Drive 服務實例 (OAuth 2.0)"""
+    creds = None
+    # token.json 儲存使用者的存取與更新權杖
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
+    # 如果沒有有效憑證，則執行登入流程
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(GoogleRequest())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # 儲存憑證供下次使用
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    return build('drive', 'v3', credentials=creds)
+
+def upload_to_drive(file_content, filename, folder_id):
+    """將檔案上傳到 Google Drive 並設定為公開連結"""
+    try:
+        service = get_drive_service()
+        file_metadata = {
+            'name': filename,
+            'parents': [folder_id]
+        }
+        media = MediaIoBaseUpload(io.BytesIO(file_content), mimetype='image/jpeg')
+        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        
+        # 設定檔案權限為任何擁有連結的人皆可檢視
+        service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        # 再次獲取檔案以獲取 webViewLink (有時建立時拿不到正確的 webViewLink)
+        file = service.files().get(fileId=file.get('id'), fields='webViewLink').execute()
+        return file.get('webViewLink')
+    except Exception as e:
+        print(f"Error uploading to Drive: {e}")
+        return None
+
+def analyze_image(image_bytes):
+    """使用 OpenAI Vision API 辨識圖片內容"""
+    if not client:
+        return "OpenAI API 未設定"
+    try:
+        # 將圖片轉為 base64
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "這是一張筆記或靈感圖片，請仔細辨識圖片內容，並將其中的文字或主要物件總結成一段繁體中文摘要，以便我記錄到 Notion。"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}",
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=500,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error analyzing image: {e}")
+        return f"圖片分析出錯: {e}"
 
 @app.post("/callback")
 async def callback(request: Request):
@@ -79,10 +178,13 @@ def summarize_text(text):
     if not client:
         return ""
     try:
+        # 使用台灣時間
+        now_tw = datetime.now(TW_TIMEZONE)
+        
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": f"You are a helpful assistant. The current time is {now_tw.strftime('%Y-%m-%d %H:%M:%S')} (Asia/Taipei)."},
                 {"role": "user", "content": f"請幫我摘要這段語音轉出的文字，抓出重點：\n\n{text}"}
             ]
         )
@@ -91,75 +193,187 @@ def summarize_text(text):
         print(f"Error summarizing text: {e}")
         return ""
 
-def save_to_notion(text, summary, note_type="語音筆記"):
+def extract_url_content(url):
+    """擷取網頁內容並提取文字"""
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded:
+            content = trafilatura.extract(downloaded)
+            return content
+        return None
+    except Exception as e:
+        print(f"Error extracting URL content: {e}")
+        return None
+
+def save_to_notion(text, summary, note_type="語音筆記", url=None, line_id=None):
     if not notion or not notion_database_id:
         print("Notion setup incomplete, skipping save.")
         return
 
-    current_time = datetime.now().isoformat()
-    title = f"{note_type} [{datetime.now().strftime('%Y-%m-%d %H:%M')}]"
+    # 使用台灣時間
+    now_tw = datetime.now(TW_TIMEZONE)
+    current_time = now_tw.isoformat()
+    title = f"{note_type} [{now_tw.strftime('%Y-%m-%d %H:%M')}]"
 
     try:
-        # 將長文字拆分成多個區塊（Notion 單個區塊限制為 2000 字元，雖然正文可以有很多區塊）
-        # 這裡我們簡單處理，如果真的超級長再細分，目前先以單一 paragraph 寫入
-        children = [
-            {
+        # 準備頁面內容 (Children)
+        children = []
+        
+        # 如果有 URL，先加入連結區塊
+        if url:
+            children.append({
                 "object": "block",
                 "type": "heading_2",
-                "heading_2": {"rich_text": [{"text": {"content": "原始內容"}}]}
-            },
-            {
+                "heading_2": {"rich_text": [{"text": {"content": "連結"}}]}
+            })
+            children.append({
                 "object": "block",
                 "type": "paragraph",
                 "paragraph": {
                     "rich_text": [
                         {
                             "type": "text",
-                            "text": {"content": text[:2000]} # 安全起見先截斷，若要支援更長需循環建立 block
+                            "text": {"content": "查看連結", "link": {"url": url}}
                         }
                     ]
                 }
-            }
-        ]
+            })
+
+        children.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {"rich_text": [{"text": {"content": "原始內容"}}]}
+        })
         
-        # 如果超過 2000 字，追加後續區塊
-        if len(text) > 2000:
-            for i in range(2000, len(text), 2000):
-                children.append({
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"type": "text", "text": {"content": text[i:i+2000]}}]
-                    }
-                })
+        # 將長文字拆分成多個區塊
+        content_text = text if text else "(無文字內容)"
+        for i in range(0, len(content_text), 2000):
+            children.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": content_text[i:i+2000]}}]
+                }
+            })
+
+        # 準備屬性
+        properties = {
+            "Name": {"title": [{"text": {"content": title}}]},
+            "摘要": {"rich_text": [{"text": {"content": summary}}]},
+            "時間": {"date": {"start": current_time, "end": None}},
+            "類型": {"select": {"name": note_type}}
+        }
+
+        # 如果有 URL，同時寫入「URL」屬性 (之前叫「圖片連結」)
+        if url:
+            properties["URL"] = {"url": url}
+
+        # 如果有 Line ID，寫入「Line_ID」屬性
+        if line_id:
+            properties["Line_ID"] = {"rich_text": [{"text": {"content": line_id}}]}
 
         notion.pages.create(
             parent={"database_id": notion_database_id},
-            properties={
-                "Name": {"title": [{"text": {"content": title}}]},
-                "摘要": {"rich_text": [{"text": {"content": summary}}]},
-                "時間": {"date": {"start": current_time, "end": None}},
-                "類型": {"select": {"name": note_type}}
-            },
+            properties=properties,
             children=children
         )
         print("Successfully saved to Notion")
     except Exception as e:
         print(f"Failed to save to Notion: {e}")
 
+@handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image_message(event):
+    if not is_allowed(event.source.user_id):
+        with ApiClient(configuration) as api_client:
+            line_messaging_api = MessagingApi(api_client)
+            line_messaging_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="抱歉，您沒有權限使用此服務。")]
+                )
+            )
+        return
+
+    with ApiClient(configuration) as api_client:
+        line_messaging_api = MessagingApi(api_client)
+        line_messaging_api_blob = MessagingApiBlob(api_client)
+        
+        # 1. 向使用者表示正在處理
+        # line_messaging_api.reply_message(
+        #     ReplyMessageRequest(
+        #         reply_token=event.reply_token,
+        #         messages=[TextMessage(text="收到圖片！正在處理中，請稍候...")]
+        #     )
+        # )
+        # 注意：LINE 一個 reply_token 只能回覆一次，所以前面不能先回覆。
+        
+        # 2. 獲取圖片內容
+        message_content = line_messaging_api_blob.get_message_content(event.message.id)
+        
+        # 3. 分析圖片 (OpenAI Vision)
+        analysis_result = analyze_image(message_content)
+        
+        # 4. 上傳至 Google Drive
+        now_tw = datetime.now(TW_TIMEZONE)
+        filename = f"image_{now_tw.strftime('%Y%m%d_%H%M%S')}.jpg"
+        drive_link = upload_to_drive(message_content, filename, google_drive_folder_id)
+        
+        if drive_link:
+            # 5. 儲存到 Notion
+            save_to_notion(analysis_result, analysis_result, note_type="圖片筆記", url=drive_link, line_id=event.source.user_id)
+            reply_text = f"【圖片辨識摘要】\n{analysis_result}\n\n【雲端連結】\n{drive_link}"
+        else:
+            reply_text = f"【圖片辨識摘要】\n{analysis_result}\n\n(注意：圖片上傳雲端失敗)"
+        
+        # 6. 回傳結果
+        line_messaging_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)]
+            )
+        )
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    if not is_allowed(event.source.user_id):
+        with ApiClient(configuration) as api_client:
+            line_messaging_api = MessagingApi(api_client)
+            line_messaging_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="抱歉，您沒有權限使用此服務。")]
+                )
+            )
+        return
+
     text = event.message.text.strip()
     
+    # 網址偵測邏輯 (簡單的正則表達式)
+    url_pattern = r'https?://[^\s]+'
+    url_match = re.search(url_pattern, text)
+    
+    if url_match:
+        url = url_match.group(0)
+        # 1. 爬取內容
+        content = extract_url_content(url)
+        if content:
+            # 2. 摘要內容
+            summary = summarize_text(content)
+            # 3. 儲存到 Notion
+            save_to_notion(content, summary, note_type="網頁筆記", url=url, line_id=event.source.user_id)
+            reply_text = f"【網頁摘要】\n{summary}"
+        else:
+            reply_text = "無法擷取該網址的內容。"
+    
     # 檢查是否包含指令 /a
-    if text.lower().startswith("/a"):
+    elif text.lower().startswith("/a"):
         # 移除指令部分取得純文本
         content = text[2:].strip()
         if not content:
             reply_text = "請在 /a 後方輸入要摘要的文字。"
         else:
             summary = summarize_text(content)
-            save_to_notion(content, summary, note_type="文字摘要")
+            save_to_notion(content, summary, note_type="文字摘要", line_id=event.source.user_id)
             reply_text = f"【AI 摘要】\n{summary}"
     else:
         # 一般訊息處理 (Echo)
@@ -176,6 +390,17 @@ def handle_message(event):
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def handle_audio_message(event):
+    if not is_allowed(event.source.user_id):
+        with ApiClient(configuration) as api_client:
+            line_messaging_api = MessagingApi(api_client)
+            line_messaging_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="抱歉，您沒有權限使用此服務。")]
+                )
+            )
+        return
+
     if client is None:
         with ApiClient(configuration) as api_client:
             line_messaging_api = MessagingApi(api_client)
@@ -211,7 +436,7 @@ def handle_audio_message(event):
         # 儲存到 Notion
         if transcript and transcript.text:
             summary = summarize_text(transcript.text)
-            save_to_notion(transcript.text, summary, note_type="語音筆記")
+            save_to_notion(transcript.text, summary, note_type="語音筆記", line_id=event.source.user_id)
             
             # 回覆內容包含摘要
             reply_text = f"【辨識結果】\n{transcript.text}\n\n【AI 摘要】\n{summary}"

@@ -279,3 +279,171 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
     - 確認「類型」屬性是否正確（文字摘要 vs 語音筆記）。
     - 確認原始內容出現在 Notion 頁面的正文區（而不是屬性欄位）。
     - 確認摘要仍保留在屬性欄位。
+
+---
+
+# 圖片筆記功能實作計畫 (新增於 2025-12-29)
+
+實作一個功能，讓使用者上傳圖片到 LINE 後，將其儲存在 Google Drive 並透過 OpenAI Vision API 產生摘要，最後記錄到 Notion。
+
+## 需要使用者確認
+
+> [!IMPORTANT]
+> - **Google OAuth 驗證**：我將使用提供的 `credentials.json` 進行 OAuth 2.0 驗證。
+> - **初始設定**：第一次執行時，程式可能需要在終端機提示您進行授權（開啟瀏覽器登入 Google 帳號），完成後會產生 `token.json` 以供後續自動登入。
+> - **權限設定**：請確保您的 Google Cloud Console 專案中已啟動 **Google Drive API**。
+
+## 預計變更內容
+
+### 依賴套件
+- 新增 Google API 用戶端程式庫：`google-api-python-client`, `google-auth-httplib2`, `google-auth-oauthlib`。
+
+### 環境變數
+- `GOOGLE_CREDENTIALS_FILE`：預設為 `credentials.json`。
+- `GOOGLE_TOKEN_FILE`：預設為 `token.json`。
+- `GOOGLE_DRIVE_FOLDER_ID`：`1yeIYLXlEhDACEqARMWBfBUJpzlYFgPHy`。
+
+### 實作細節
+
+#### [修改] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+- 匯入 Google Drive API 程式庫 (`googleapiclient.discovery`, `google_auth_oauthlib.flow` 等)。
+- 實作 `get_drive_service()`：
+    - 使用 `credentials.json` 處理 OAuth 2.0 流程。
+    - 讀取/儲存 `token.json` 以實現持久化存取。
+- 實作 `upload_to_drive(file_obj, filename, folder_id)`：
+    - 將檔案上傳到指定資料夾。
+    - 設定檔案權限為「任何擁有連結的人皆可查看」。
+    - 回傳公開的 `webViewLink`。
+- 實作 `analyze_image(image_bytes)`：
+    - 使用 `gpt-4o-mini` 的視覺能力 (Vision) 來摘要圖片內容。
+- 更新 `handle_message` 以支援 `ImageMessageContent`：
+    - 從 LINE 下載圖片。
+    - 上傳到 Google Drive。
+    - 使用 OpenAI Vision 辨識內容。
+    - 使用 `save_to_notion(image_url, analysis_result, note_type="圖片筆記")` 儲存到 Notion。
+
+#### [修改] [pyproject.toml](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/pyproject.toml)
+- 新增 Google API 相關依賴。
+
+## 驗證計畫
+
+### 手動驗證
+1. **Google OAuth 流程**：啟動程式並在瀏覽器中完成授權（若有提示），確認產生 `token.json`。
+2. **Google Drive 上傳**：傳送圖片給 Bot，確認圖片出現在指定雲端硬碟資料夾且可公開存取。
+3. **OpenAI Vision**：確認 Bot 回傳合理的圖片內容摘要。
+4. **Notion 紀錄**：確認 Notion 中建立了包含圖片連結與摘要的新分頁。
+5. **端到端測試**：傳送圖片給 LINE Bot，確認其回覆摘要且資料正確儲存。
+
+---
+
+# 網址自動爬取與摘要功能實作計畫 (新增於 2025-12-29)
+
+本計畫旨在實現當使用者在 LINE 貼上網址時，機器人能自動爬取網頁內容、進行 AI 摘要並存入 Notion。
+
+## 待辦事項與使用者確認
+- [x] 需要新增 `trafilatura` 套件來負責網頁內容擷取。
+- [ ] 網址偵測邏輯：當訊息「包含網址」或「僅為網址」時觸發爬取流程。
+- [ ] 若訊息不包含網址且不屬於指令（如 `/a`），則維持原有的 Echo 功能。
+- [x] 使用者已將 Notion「圖片連結」欄位更名為「URL」，將統一使用此欄位。
+
+## 預計變更
+
+### [Component] 依賴管理
+#### [MODIFY] [pyproject.toml](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/pyproject.toml)
+- 新增 `trafilatura` 套件。
+
+### [Component] LINE Bot 核心邏輯
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+- **匯入**: 新增 `import trafilatura` 與 `import re`。
+- **新增函式 `extract_url_content(url)`**: 
+  - 使用 `trafilatura.fetch_url` 下載網頁。
+  - 使用 `trafilatura.extract` 提取乾淨的文字內容。
+- **修改 `handle_message`**:
+  - 加入正則表達式偵測訊息是否包含網址（例如使用 `re.search`）。
+  - 若偵測到網址：
+    1. 執行爬取 `extract_url_content`。
+    2. 調用 OpenAI 摘要 `summarize_text`。
+    3. 呼叫 `save_to_notion`，將網址存入 Notion 的「URL」欄位（原「圖片連結」），`note_type` 設為「網頁筆記」。
+  - 若偵測不到網址：
+    1. 檢查是否為 `/a` 指令。
+    2. 若都不是，則回傳原訊息 (Echo)。
+
+## 驗證計畫
+
+### 自動化測試
+- 無（目前以手動測試為主）。
+
+### 手動驗證
+1. 在 LINE 發送一個新聞網址（例如：BBC, 科技新報）。
+2. 確認機器人回覆「正在爬取內容...」或直接回覆摘要。
+3. 檢查 Notion 資料庫，確認：
+-   無（目前以手動測試為主）。
+
+### 手動驗證
+1.  在 LINE 發送一個新聞網址（例如：BBC, 科技新報）。
+2.  確認機器人回覆「正在爬取內容...」或直接回覆摘要。
+3.  檢查 Notion 資料庫，確認：
+    -   「類型」為「網頁筆記」。
+    -   「摘要」包含 AI 生成的重點。
+    -   「URL」欄位正確存入原始網址。
+    -   頁面內容包含擷取到的原始文字。
+4.  測試純文字（如 "哈囉"）：機器人應回覆 "哈囉"。
+5.  測試文字摘要指令（如 "/a 測試內容"）：機器人應進行摘要運作。
+
+---
+
+# 記錄使用者 Line ID 功能實作計畫 (新增於 2025-12-29)
+
+本計畫旨在將發送訊息的使用者其唯一識別碼 (Line ID) 儲存至 Notion 資料庫中，以便後續分析或管理。
+
+## 需要使用者審查
+
+> [!IMPORTANT]
+> **Notion 資料庫 Schema 更新**
+> 請手動在 Notion 資料庫中新增一個欄位：
+> -   **Line_ID** (Text / Rich Text): 用於儲存使用者的 `user_id`。
+
+## 預計變更
+
+### [Component] LINE Bot 核心邏輯
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+-   **修改 `save_to_notion`**:
+    -   新增參數 `line_id: str = None`。
+    -   在 `properties` 中加入 `"Line_ID": {"rich_text": [{"text": {"content": line_id}}]}`。
+-   **更新處理器**:
+    -   在 `handle_message` (文字)、`handle_audio_message` (語音)、`handle_image_message` (圖片) 中，從 `event.source.user_id` 擷取 Line ID。
+    -   在呼叫 `save_to_notion` 時傳入此 ID。
+
+## 驗證計畫
+
+### 手動驗證
+1.  在 LINE 發送文字訊息（帶或不帶指令）、語音訊息或圖片。
+2.  檢查 Notion 資料庫，確認「Line_ID」欄位是否正確填入使用者的識別碼。
+
+---
+
+# 使用者權限控管功能實作計畫 (新增於 2025-12-29)
+
+為了避免 LINE Bot 被不當的使用者濫用，本計畫將實作白名單機制，僅允許特定的 Line ID 使用靈感助手的功能。
+
+## 預計變更
+
+### 環境變數
+#### [MODIFY] [.env](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env)
+- 新增 `ALLOWED_LINE_ID=U4504155baed0514607af81f92b439900`。
+
+#### [MODIFY] [.env.example](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env.example)
+- 新增 `ALLOWED_LINE_ID` 範例供參考。
+
+### [Component] LINE Bot 核心邏輯
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+- **新增 `is_allowed(user_id)` 輔助函式**: 檢查傳入的 `user_id` 是否與 `ALLOWED_LINE_ID` 相符。
+- **更新所有處理器**: 
+  - 在 `handle_message`, `handle_audio_message`, `handle_image_message` 的最開始調用 `is_allowed`。
+  - 若 `is_allowed` 回傳 `False`，則回覆「您沒有權限使用此服務」並結束處理。
+
+## 驗證計畫
+
+### 手動驗證
+1. 使用 ID 為 `U4504155baed0514607af81f92b439900` 的帳號發送訊息，確認一切運作正常。
+2. 使用其他帳號發送訊息，確認機器人回覆權限不足訊息且不執行爬取或儲存動作。

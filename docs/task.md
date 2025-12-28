@@ -83,3 +83,71 @@
     - [x] 測試 `/a` 指令是否正確觸發
     - [x] 驗證 Notion 頁面內容是否包含長文字
     - [x] 更新 `walkthrough.md` 展示成果
+
+---
+
+# 圖片筆記功能 (Google Drive + OpenAI Vision + Notion) (新增於 2025-12-29)
+
+- [ ] 規劃與設定 (PLANNING)
+    - [x] 研究 Google Drive API (OAuth 2.0) 整合
+    - [x] 研究 OpenAI Vision API
+    - [x] 建立實作計畫並翻譯為繁體中文
+- [x] 實作開發 (EXECUTION) [x]
+    - [x] 配置環境變數 (Google Drive, OpenAI, Notion) [x]
+    - [x] 實作 Google Drive 上傳輔助功能 (OAuth 流程) [x]
+    - [x] 實作 OpenAI Vision 辨識輔助功能 [x]
+    - [x] 更新 Notion 整合功能以支援圖片筆記 [x]
+    - [x] 在 `app.py` 中處理圖片訊息 [x]
+- [x] 驗證與測試 (VERIFICATION) [x]
+    - [x] 測試圖片上傳至 Google Drive 功能 [x]
+    - [x] 測試 OpenAI Vision 辨識準確率 (已優化 Prompt) [x]
+    - [x] 測試 Notion 紀錄建立 (包含圖片連結與摘要) [x]
+    - [x] 最終端對端流程驗證 [x]
+    - [x] 修正時區為台灣 (Asia/Taipei) [x]
+    - [x] 同步雲端連結至 Notion「圖片連結」欄位 [x]
+
+---
+
+# 網址自動爬取與摘要功能 (新增於 2025-12-29)
+
+- [x] 規劃與設定 (PLANNING)
+    - [x] 新增 `trafilatura` 套件依賴
+    - [x] 撰寫並更新實作計畫與相關文件
+- [x] 實作開發 (EXECUTION)
+    - [x] 實作 `extract_url_content` 協助函數
+    - [x] 實作網址偵測邏輯 (Regex)
+    - [x] 更新 `handle_message` 以支援網址自動處理
+    - [x] 整合爬取、摘要與 Notion 儲存流程
+- [x] 驗證與測試 (VERIFICATION)
+    - [x] 測試不同網站的爬取效果
+    - [x] 驗證 Notion 紀錄是否正確
+    - [x] 更新 `walkthrough.md` 展示成果
+
+---
+
+# 記錄使用者 Line ID 功能 (新增於 2025-12-29)
+
+- [x] 規劃與設定 (PLANNING)
+    - [x] 更新 Notion 資料庫 schema (需使用者手動新增 `Line_ID` 欄位)
+    - [x] 更新實作計畫 `implementation_plan.md`
+- [x] 實作開發 (EXECUTION)
+    - [x] 修改 `save_to_notion` 函式以接收 `line_id` 參數
+    - [x] 更新所有訊息處理器 (`handle_message`, `handle_audio_message`, `handle_image_message`) 擷取 `event.source.user_id`
+- [x] 驗證與測試 (VERIFICATION)
+    - [x] 驗證 Notion 紀錄是否包含正確的 `Line_ID`
+    - [x] 更新 `walkthrough.md`
+
+---
+
+# 使用者權限控管功能 (新增於 2025-12-29)
+
+- [x] 規劃與設定 (PLANNING)
+    - [x] 在 `.env` 中新增 `ALLOWED_LINE_ID`
+    - [x] 更新實作計畫 `implementation_plan.md`
+- [x] 實作開發 (EXECUTION)
+    - [x] 修改 `handle_message`, `handle_audio_message`, `handle_image_message`
+    - [x] 實作權限檢查邏輯：若非指定 ID 則不執行後續動作或提示錯誤
+- [x] 驗證與測試 (VERIFICATION)
+    - [x] 驗證指定 ID 可正常使用
+    - [x] 驗證其他 ID 被阻擋
+    - [x] 更新 `walkthrough.md`

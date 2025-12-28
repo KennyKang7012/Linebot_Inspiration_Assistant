@@ -210,3 +210,172 @@ render_diffs(file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_A
 2. **長文字測試**：
    - 輸入：一段超過 3000 字且包含 `/a` 指令的文字。
    - 結果：Notion 頁面成功建立，且原始內容出現在頁面正文（分段顯示），摘要正確顯示於屬性欄位。
+---
+
+# 成果展示 - LINE Bot 頭貼生成 (新增於 2025-12-28)
+
+我們為「靈感助手」設計並生成了專屬的 LINE Bot 頭貼風格，讓機器人形象更具專業感與親和力。
+
+## 設計方案
+
+我們提供了三種不同核心理念的設計供選擇：
+
+1.  **現代極簡 (Modern Minimalist)**: 科技感的玻璃質感燈泡，象徵 AI 驅動的靈感。
+2.  **親切吉祥物 (Friendly Mascot)**: 可愛的小機器人拿著金色羽毛筆，強調「助手」的角色。
+3.  **創意抽象 (Creative Abstract)**: 紙飛機（捕捉靈感）與聲波（語音辨識）的結合，色調活潑。
+
+## 頭貼預覽與存檔
+
+所有生成的圖片已儲存於專案的 `docs/` 資料夾中。
+
+````carousel
+### 方案 1: 現代極簡
+![現代極簡風格](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/docs/avatar_minimalist_1766902388327.png)
+
+<!-- slide -->
+
+### 方案 2: 親切吉祥物
+![親切吉祥物風格](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/docs/avatar_mascot_1766902403443.png)
+
+<!-- slide -->
+
+### 方案 3: 創意抽象
+![創意抽象風格](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/docs/avatar_abstract_1766902420248.png)
+````
+
+## 驗證結果
+
+### 檔案狀態
+- [x] **圖片存檔**: 已成功將 `.png` 檔案複製至 `docs/`。
+- [x] **文件更新**: 已在 `walkthrough.md` 中紀錄生成過程與風格描述。
+
+---
+
+# 實作紀錄 - 圖片筆記功能 (Google Drive + OpenAI Vision + Notion) (新增於 2025-12-29)
+
+我們成功實作了自動化的圖片筆記功能。當使用者傳送圖片至 LINE Bot 時，系統會自動辨識圖片內容、上傳至 Google Drive 並在 Notion 中建立詳細紀錄。
+
+## 主要變更
+
+### 1. Google Drive 雲端儲存 (OAuth 2.0)
+- 整合 `google-api-python-client`。
+- 實作 OAuth 2.0 授權流程，使用 `credentials.json` 進行身分驗證，並自動管理 `token.json` 以實現持久化存取。
+- 圖片上傳後會自動設定權限為「任何擁有連結的人皆可檢視」，並取得公開的 `webViewLink`。
+
+### 2. OpenAI Vision 圖片分析
+- 使用 `gpt-4o-mini` 模型的視覺能力。
+- 將下載的圖片轉為 Base64 格式傳送至 API，取得準確的內容摘要與描述。
+
+### 3. Notion 整合強化
+- **save_to_notion**: 升級函式以支援 `image_url`。
+- **正文區塊 (Children Blocks)**：
+    - 將「圖片連結」以可點擊的連結形式插入 Notion 頁面頂部。
+    - 將 AI 分析結果存放在「摘要」屬性與頁面正文中。
+
+### 4. 關鍵程式碼段落
+render_diffs(file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+
+## 驗證結果
+
+### 端到端驗證成功
+- [x] **啟動授權**：已成功引導使用者完成 Google OAuth 授權，產生 `token.json`。
+- [x] **功能測試**：
+   - 傳送圖片至 LINE Bot。
+   - 成功收到包含「分析摘要」與「雲端連結」的回覆。
+   - 確認圖片已成功上傳至 Google Drive 並設定為公開。
+   - 確認資料已同步至 Notion，且原始內容存於正文區塊。
+
+### 最終優化與調整 (2025-12-29)
+
+1. **時區在地化**：
+   - 整合 `pytz` 函式庫。
+   - 將系統所有時間紀錄（Notion 屬性、檔名、AI 參考時間）修正為**台灣時間 (Asia/Taipei)**。
+
+2. **Notion 欄位同步優化**：
+   - 更新 `save_to_notion` 邏輯，除了將圖片連結放入正文，也同步寫入資料庫的「**圖片連結**」URL 屬性欄位。
+
+3. **AI 辨識能力提升**：
+   - 優化 OpenAI Vision 的提示詞（Prompt），引導 AI 更積極地識別筆記內容。
+   - 增加 `max_tokens` 至 500 以確保回覆不被截斷。
+
+4. **環境安全性**：
+   - 更新 `.gitignore`，確保 `token.json` 與 `credentials.json` 等私密憑證不會被 Git 追蹤。
+
+---
+
+# 實作紀錄 - 網址自動爬取與摘要功能 (新增於 2025-12-29)
+
+我們成功實作了網址自動識別與爬取功能。當使用者在 LINE 貼上網址時，Bot 會自動擷取網頁內文並生成摘要存入 Notion。
+
+## 主要變更
+
+### 1. 網頁內容擷取 (Trafilatura)
+- 整合 `trafilatura` 套件，實現高效且乾淨的網頁內文提取。
+
+### 2. 網址偵測邏輯
+- 在 `handle_message` 中加入正則表達式，自動識別訊息中的網址。
+- 支援「僅網址」或「文字中包含網址」的偵測。
+
+### 3. Notion 欄位統一
+- 將原有的「圖片連結」欄位更名為「URL」，實現圖片、網頁與語音連結的統一存儲。
+
+## 驗證結果 (進行中)
+- [x] **網頁爬取測試**：驗證是否能正確提取新聞或部落格內文。
+- [x] **AI 摘要測試**：驗證摘要是否準確抓取網頁重點。
+- [x] **Notion 存檔測試**：驗證 URL 與內文是否正確存入。
+- [x] **原有功能測試**：驗證純文字 Echo 與 `/a` 指令是否正常運作。
+
+---
+
+# 實作紀錄 - 記錄使用者 Line ID 功能 (新增於 2025-12-29)
+
+我們增加了自動紀錄使用者唯一識別碼 (Line ID) 的功能，以便區分不同使用者的靈感紀錄。
+
+## 主要變更
+
+### 1. 修改 `save_to_notion`
+- 函式新增 `line_id` 參數。
+- 同步將 ID 寫入 Notion 資料庫的「Line_ID」屬性欄位。
+
+### 2. 擷取 Line ID
+- 在所有訊息處理器 (`handle_message`, `handle_audio_message`, `handle_image_message`) 中，透過 `event.source.user_id` 取得發送者的識別碼並傳遞。
+
+## 驗證結果
+- [x] **文字訊息測試**：傳送一般文字，確認 Notion 已紀錄發送者 ID。
+- [x] **網頁摘要測試**：貼上網址，確認 Notion 成功紀錄 ID。
+- [x] **語音與圖片測試**：傳送語音或圖片，確認 ID 亦能正確同步。
+
+---
+
+# 實作紀錄 - 使用者權限控管功能 (新增於 2025-12-29)
+
+為了確保服務不被濫用，我們實作了基於 Line ID 的存取控制機制。
+
+## 主要變更
+
+### 1. 白名單機制
+- 在 `app.py` 中新增 `is_allowed(user_id)` 函式。
+- 從環境變數 `ALLOWED_LINE_ID` 讀取獲授權的使用者 ID。
+- 同步更新 `.env.example` 檔案供後續開發參考。
+
+### 2. 處理器防護
+- 在 `handle_message`, `handle_audio_message`, `handle_image_message` 的入口處加入權限檢查。
+- 未經授權的使用者將收到「抱歉，您沒有權限使用此服務。」的訊息，且系統不會執行任何爬取、識別或儲存動作。
+
+## 驗證結果
+- [x] **授權使用者測試**：使用指定 ID (`U4504155baed0514607af81f92b439900`) 發送訊息，功能一切正常。
+- [x] **非授權使用者測試**：使用其他 ID 發送訊息，系統正確回覆權限不足訊息，且 Notion 中無新筆記產生。
+
+---
+
+# 系統維護紀錄 - 環境變數穩定性強化 (新增於 2025-12-29)
+
+為了解決熱重啟時可能發生的設定殘留問題，我們進行了系統面的強化。
+
+## 修正內容
+- **環境變數覆蓋**: 將 `load_dotenv()` 更新為 `load_dotenv(override=True)`，確保 `.env` 的任何更動都能即時且強制生效。
+- **配置一致性**: 重新整理 `.env` 格式，避免因換行符號問題導致 Notion Database ID 讀取錯誤。
+
+## 驗證結果
+- [x] **設定生效測試**: 修改 `.env` 後確認系統不需完全重啟即可讀取新值。
+- [x] **Notion Validation**: 確認資料庫 ID 讀取正確，不再發生 UUID 驗證失敗。
