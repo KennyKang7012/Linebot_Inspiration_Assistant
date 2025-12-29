@@ -62,6 +62,7 @@ notion_database_id = os.getenv('NOTION_DATABASE_ID')
 google_drive_folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1yeIYLXlEhDACEqARMWBfBUJpzlYFgPHy')
 allowed_line_id = os.getenv('ALLOWED_LINE_ID')
 apify_api_key = os.getenv('APIFY_API_KEY')
+threads_actor_id = os.getenv('THREADS_ACTOR_ID', 'sinam7/threads-post-scraper')
 
 # Google Drive 權限範圍
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -177,18 +178,27 @@ async def callback(request: Request):
 
     return 'OK'
 
-def summarize_text(text):
+def summarize_text(text, type="general"):
     if not client:
         return ""
     try:
         # 使用台灣時間
         now_tw = datetime.now(TW_TIMEZONE)
         
+        # 根據類型選擇提示詞
+        prompts = {
+            "audio": "請幫我摘要這段語音轉出的文字，抓出重點：",
+            "social": "請幫我摘要這段社群貼文內容，抓出重點：",
+            "web": "請幫我摘要這段網頁文章內容，抓出重點：",
+            "general": "請幫我摘要這段文字內容，抓出重點："
+        }
+        prompt_prefix = prompts.get(type, prompts["general"])
+        
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": f"You are a helpful assistant. The current time is {now_tw.strftime('%Y-%m-%d %H:%M:%S')} (Asia/Taipei)."},
-                {"role": "user", "content": f"請幫我摘要這段語音轉出的文字，抓出重點：\n\n{text}"}
+                {"role": "user", "content": f"{prompt_prefix}\n\n{text}"}
             ]
         )
         return response.choices[0].message.content
@@ -281,6 +291,44 @@ def crawl_general_url(url):
         print(f"Error crawling general URL: {e}")
         return None
 
+def crawl_threads_post(url):
+    """使用 Apify 爬取 Threads 貼文內容"""
+    if not apify_client:
+        print("Apify API key not set.")
+        return None
+    
+    try:
+        # 準備輸入參數 (根據 sinam7/threads-post-scraper 格式)
+        run_input = {
+            "url": url
+        }
+        
+        # 執行 Actor
+        run = apify_client.actor(threads_actor_id).call(run_input=run_input)
+        
+        # 取得結果
+        items = list(apify_client.dataset(run["defaultDatasetId"]).iterate_items())
+        if items:
+            post = items[0]
+            # 更新解析邏輯 (sinam7 格式)
+            # content: 貼文內容 (換行分隔)
+            # authorId: 用戶名稱 (如 /@username)
+            text_content = post.get('content') or post.get('caption') or "(無文字內容)"
+            
+            author_id = post.get('authorId', '')
+            # 移除開頭的 /@ 或 @
+            author = author_id.replace('/', '').replace('@', '') or "未知發布者"
+            
+            content = f"【Threads 貼文內容】\n"
+            content += f"發布者: @{author}\n"
+            content += f"內容: {text_content}\n"
+            
+            return content
+        return None
+    except Exception as e:
+        print(f"Error crawling Threads: {e}")
+        return None
+
 def save_to_notion(text, summary, note_type="語音筆記", url=None, line_id=None):
     if not notion or not notion_database_id:
         print("Notion setup incomplete, skipping save.")
@@ -321,14 +369,14 @@ def save_to_notion(text, summary, note_type="語音筆記", url=None, line_id=No
             "heading_2": {"rich_text": [{"text": {"content": "原始內容"}}]}
         })
         
-        # 將長文字拆分成多個區塊
+        # 將長文字拆分成多個區塊 (Notion 限制 2000 字元，保守起見設為 1800)
         content_text = text if text else "(無文字內容)"
-        for i in range(0, len(content_text), 2000):
+        for i in range(0, len(content_text), 1800):
             children.append({
                 "object": "block",
                 "type": "paragraph",
                 "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": content_text[i:i+2000]}}]
+                    "rich_text": [{"type": "text", "text": {"content": content_text[i:i+1800]}}]
                 }
             })
 
@@ -434,6 +482,11 @@ def handle_message(event):
         if "facebook.com" in url or "fb.watch" in url:
             content = crawl_facebook_post(url)
             note_type = "FB 筆記"
+        elif "threads.net" in url or "threads.com" in url:
+            # 自動修正網域並使用 Threads 專用爬蟲
+            clean_url = url.replace("threads.com", "threads.net")
+            content = crawl_threads_post(clean_url)
+            note_type = "Threads 筆記"
         else:
             # 先試試 Apify，失敗則回退到 trafilatura
             content = crawl_general_url(url)
@@ -443,7 +496,9 @@ def handle_message(event):
 
         if content:
             # 2. 摘要內容
-            summary = summarize_text(content)
+            # 根據筆記類型決定摘要提示詞類型
+            summary_type = "social" if "FB" in note_type or "Threads" in note_type else "web"
+            summary = summarize_text(content, type=summary_type)
             # 3. 儲存到 Notion
             save_to_notion(content, summary, note_type=note_type, url=url, line_id=event.source.user_id)
             reply_text = f"【{note_type}摘要】\n{summary}"
@@ -457,7 +512,7 @@ def handle_message(event):
         if not content:
             reply_text = "請在 /a 後方輸入要摘要的文字。"
         else:
-            summary = summarize_text(content)
+            summary = summarize_text(content, type="general")
             save_to_notion(content, summary, note_type="文字摘要", line_id=event.source.user_id)
             reply_text = f"【AI 摘要】\n{summary}"
     else:
@@ -520,7 +575,7 @@ def handle_audio_message(event):
 
         # 儲存到 Notion
         if transcript and transcript.text:
-            summary = summarize_text(transcript.text)
+            summary = summarize_text(transcript.text, type="audio")
             save_to_notion(transcript.text, summary, note_type="語音筆記", line_id=event.source.user_id)
             
             # 回覆內容包含摘要

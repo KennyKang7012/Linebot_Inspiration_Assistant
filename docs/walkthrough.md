@@ -480,4 +480,68 @@ else:
 
 ---
 
+
+---
+
+# 實作紀錄 - Threads 內容爬取與摘要功能 (新增於 2025-12-30)
+
+我們成功整合了 Threads 專用的爬蟲服務，讓使用者只需傳送 Threads 貼文連結，系統就能自動提取貼文內容並生成摘要存入 Notion。
+
+## 主要變更
+
+### 1. Threads 專用爬蟲 (Apify)
+**實作函式**: `crawl_threads_post(url)`
+- 使用 Apify Actor: `sinam7/threads-post-scraper`
+- **成本優化方案**: 採用「個人開發者釋出的按量計費」模型，**無需支付固定月租費** (對比其他方案每月需 $19-$30 美元)，極大程度地節省了開支。
+- 支援直接輸入 `threads.net` 貼文連結。
+
+### 2. 網址智慧辨識與分流
+更新了 `handle_message` 的網址偵測邏輯，現在能精準區分不同類型的社交媒體內容：
+- **Threads**: 導向專用的 `crawl_threads_post`。
+- **Facebook**: 保持使用 `crawl_facebook_post`。
+- **一般網頁**: 使用 Apify 萬用爬蟲或 `trafilatura` 回退機制。
+
+### 3. 環境變數配置
+- 新增 `THREADS_ACTOR_ID` 變數 (預設為 `sinam7/threads-post-scraper`)。
+
+## 驗證結果 (程式碼邏輯)
+
+- [x] **網址分流測試**: 驗證偵測到 `threads.net` 時會觸發正確的處理器。
+- [x] **內容提取邏輯**: 根據 `sinam7/threads-post-scraper` 的 API 格式，正確對接 `author` 與 `text` 欄位。
+- [x] **Notion 整合**: 驗證「Threads 筆記」類型標籤與 URL 屬性的填入。
+- [x] **摘要語意修正**: 系統現已能區分內容來源，社群貼文摘要不再顯示「語音轉出的文字」等不相干的引言。
+- [x] **網址相容性**: 驗證 `threads.com` 連結也能正確導向至 Threads 專用爬蟲。
+
+## 問題排除與優化紀錄 (2025-12-30)
+
+在此次 Threads 功能整合過程中，我們解決了以下技術問題：
+
+### 1. 執行期錯誤 (Runtime Errors)
+- **Notion 內容過長錯誤**:
+    - **症狀**: 應用程式日誌顯示 `body.children[3]... length should be ≤ 2000` 錯誤，導致無法存入 Notion。
+    - **原因**: Notion API 的 `paragraph` 區塊有 2000 字元限制。
+    - **解決**: 將內容分切邏輯的上限調整為 **1800 字元** (預留緩衝空間)。
+- **程式碼重複 (Duplicate Code)**:
+    - **症狀**: 編輯時不慎在 `handle_message` 造成 Facebook 爬取邏輯重複執行。
+    - **解決**: 移除 `app.py` 中重複的程式碼片段，確保流程正確。
+
+### 2. 邏輯修正 (Logic Fixes)
+- **Apify 欄位解析對接**:
+    - **問題**: `sinam7/threads-post-scraper` 的回傳 JSON 結構與預期不同 (原以為是 `text`，實際為 `content`; 作者欄位為 `authorId`)。
+    - **解決**: 更新 `crawl_threads_post` 的解析邏輯以匹配實際 API 回應。
+- **Threads.com 網址支援**:
+    - **問題**: 部分分享連結使用 `threads.com` 網域，導致被誤判為一般網頁。
+    - **解決**: 在爬取前自動偵測並將 `threads.com` 替換為 `threads.net`。
+
+### 3. 用戶體驗改善
+- **AI 摘要上下文優化**:
+    - **問題**: 所有摘要都以「這段語音轉出的文字」開頭。
+    - **解決**: 重構 `summarize_text` 函式，新增 `type` 參數 ('social', 'web', 'audio')，讓 AI 根據不同場景使用正確的開場白。
+
+## 已知限制
+> [!NOTE]
+> 與 Facebook 類似，Threads 爬蟲主要針對公開內容。若貼文受限或為私人帳號，可能無法成功擷取。
+
+---
+
 *最後更新: 2025-12-30*

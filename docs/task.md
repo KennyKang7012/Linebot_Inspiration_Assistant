@@ -171,4 +171,20 @@
     - [x] 測試 Facebook 公開貼文爬取
     - [x] 測試一般網頁爬取 (新聞、部落格等)
     - [x] 驗證 Notion 紀錄類型正確 (FB 筆記 vs 網頁筆記)
-    - [x] 更新開發文件至 `docs` 資料夾
+
+---
+
+# Threads 內容爬取與摘要功能 (新增於 2025-12-30)
+
+- [x] 規劃與設定 (PLANNING) [x]
+    - [x] 研究 Apify Threads Actor 與 API 使用方法 [x]
+    - [x] 建立執行計畫 (已選用低成本方案 sinam7/threads-post-scraper) [x]
+- [x] 實作開發 (EXECUTION) [x]
+    - [x] 在 `app.py` 中新增 `crawl_threads_post` 函式
+    - [x] 更新 `handle_message` 中的網址偵測邏輯以包含 Threads
+    - [x] 在 `.env` 與 `app.py` 中加入 `THREADS_ACTOR_ID`
+- [x] 驗證與測試 (VERIFICATION) [x]
+    - [x] 使用 Threads 網址進行測試 [x]
+    - [x] 驗證摘要內容與 Notion 儲存結果 [x]
+    - [x] 修正摘要提示詞上下文錯誤 (FB/Threads 不應顯示"語音轉出") [x]
+    - [x] 更新開發紀錄 (walkthrough.md) [x]

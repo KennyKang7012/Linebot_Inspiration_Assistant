@@ -564,3 +564,54 @@ apify_client = ApifyClient(apify_api_key) if apify_api_key else None
 2. 確認系統回覆適當的錯誤訊息
 3. 發送無效或無法存取的網址
 4. 確認系統不會崩潰並給予適當回饋
+
+---
+
+# 使用 Apify 整合 Threads 爬蟲計畫 (新增於 2025-12-30)
+
+本計畫概述了在 Linebot 靈感助手（Linebot Inspiration Assistant）中加入 Threads 支援的步驟。我們將選用 Apify 的 `sinam7/threads-post-scraper` Actor，此方案**無需支付固定月費**，僅按爬取結果計費（Pay-per-result），且可完美搭配 Apify 每月贈送的 $5 免費額度。
+
+## 預計變更
+
+### 設定檔
+#### [修改] [.env.example](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env.example)
+- 在範例環境變數中加入 `THREADS_ACTOR_ID` (預設為 `sinam7/threads-post-scraper`)。
+
+### 應用程式邏輯
+#### [修改] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+- 從環境變數中讀取 `THREADS_ACTOR_ID`。
+- 實作 `crawl_threads_post(url)` 函數：
+    - 使用 `apify_client` 呼叫 Actor `sinam7/threads-post-scraper`。
+    - 輸入格式：`{"url": url}`。
+    - 從結果中提取貼文文字 (`text`) 與作者資訊。
+- 更新 `handle_message` 函數：
+    - 加入對 `threads.net` 網址的偵測邏輯。
+    - 將偵測到的 Threads 網頁導向至 `crawl_threads_post`。
+    - 將 `note_type` 設定為「Threads 筆記」。
+
+## 驗證計畫
+
+### 手動驗證
+- **測試 Threads 連結**:
+    1. 傳送一個 Threads 貼文網址（例如 `https://www.threads.net/@zuck/post/C_A5V-Sst-T`）給 Line 機器人。
+    2. 驗證機器人是否能成功擷取內容並回傳摘要。
+    3. 檢查 Notion 資料庫，確保已新增「Threads 筆記」入口，且包含正確的 URL、原始文字與摘要。
+- **錯誤處理測試**:
+    1. 傳送一個無效或私人的 Threads 網址（可能需要權限）。
+    2. 驗證機器人是否能優雅地處理錯誤。
+
+## 實際執行修正紀錄 (2025-12-30)
+
+### 1. 欄位解析修正
+- `sinam7/threads-post-scraper` 的回傳欄位與預期不同。
+- **修正**: 將解析邏輯從 `text`/`author` 更新為 `content`/`authorId`。
+
+### 2. 提示詞優化
+- **問題**: 摘要總是顯示「語音轉出的文字」。
+- **修正**: 更新 `summarize_text` 函式，新增 `type` 參數以支援不同情境的提示詞 (social, web, audio)。
+
+### 3. 用戶體驗優化
+- **問題**: 使用者分享 `threads.com` 連結被誤判為一般網頁。
+- **修正**: 在 `handle_message` 中加入自動轉換邏輯，將 `threads.com` 替換為 `threads.net`。
+- **問題**: Notion 儲存失敗。
+- **修正**: 將 Notion 內容分塊大小限制從 2000 字調降為 1800 字。
