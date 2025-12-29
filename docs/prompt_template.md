@@ -56,4 +56,36 @@
     - 偵測以 `/a` 開頭的訊息。
     - 若符合指令，自動總結內容、存入 Notion 並設類型為 `文字摘要`。
 9. **複合式回覆**: Bot 回覆訊息時需包含「辨識結果（或指令內容）」與「摘要」。
+10. **圖片筆記功能**:
+    - 整合 Google Drive API (OAuth 2.0) 上傳圖片。
+    - 使用 OpenAI Vision API (gpt-4o-mini) 辨識圖片內容。
+    - 將圖片連結與摘要存入 Notion,類型設為 `圖片筆記`。
+11. **網址爬取與摘要**:
+    - 自動偵測訊息中的網址 (使用正則表達式)。
+    - 使用 `trafilatura` 擷取網頁內容。
+    - 將網址、內容與摘要存入 Notion,類型設為 `網頁筆記`。
+12. **Apify 爬蟲增強** (可選):
+    - 整合 `apify-client` 以支援進階網頁爬取。
+    - **Facebook 貼文**: 使用 `apify/facebook-posts-scraper` 爬取公開貼文,提取發布者、時間與內容。
+    - **一般網頁**: 使用 `apify/website-content-crawler` 處理需要 JavaScript 渲染的動態網頁。
+    - **回退機制**: Apify 失敗時自動使用 trafilatura。
+    - 將 Facebook 貼文存為 `FB 筆記`,一般網頁存為 `網頁筆記`。
+13. **使用者權限控管**:
+    - 從環境變數 `ALLOWED_LINE_ID` 讀取白名單。
+    - 在所有訊息處理器中檢查 `event.source.user_id` 是否符合白名單。
+    - 未授權使用者收到「抱歉,您沒有權限使用此服務。」訊息。
+14. **Line ID 記錄**:
+    - 在所有 Notion 紀錄中加入 `Line_ID` 欄位。
+    - 從 `event.source.user_id` 擷取並儲存使用者識別碼。
 
+## 環境變數完整清單
+```text
+LINE_CHANNEL_SECRET=...
+LINE_CHANNEL_ACCESS_TOKEN=...
+OPENAI_API_KEY=...
+NOTION_API_KEY=...
+NOTION_DATABASE_ID=...
+GOOGLE_DRIVE_FOLDER_ID=...
+ALLOWED_LINE_ID=...
+APIFY_API_KEY=...  # 可選,用於進階網頁爬取
+```

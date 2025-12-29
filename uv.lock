@@ -98,6 +98,30 @@ wheels = [
 ]
 
 [[package]]
+name = "apify-client"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "apify-shared" },
+    { name = "colorama" },
+    { name = "impit" },
+    { name = "more-itertools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dd/e3/08c1eb269d4559e5c01343347c913423c24efd425f0c2bd9f743e28c8a86/apify_client-2.3.0.tar.gz", hash = "sha256:ff6d32e27d5205343e89057ac0e0c02b53a9219ccedfd30a3c4d70d13d931488", size = 389101, upload-time = "2025-11-13T13:42:33.923Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/b6/6dabe41804932e020557450abc8bc74725a942c6f08969021efe965d4260/apify_client-2.3.0-py3-none-any.whl", hash = "sha256:6ae9b1461c2a15ab19c6131bfcab55be9362259cced9b254b827b4c3b6c12d40", size = 85996, upload-time = "2025-11-13T13:42:32.012Z" },
+]
+
+[[package]]
+name = "apify-shared"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/88/5283f9ffad85751b7501ae56aa500db26b149dc51ed8cc6025304ecfc5fc/apify_shared-2.1.0.tar.gz", hash = "sha256:95b603454788189e9c6fa98af0e311d78033178db1434a4f0690fac40467aae0", size = 46982, upload-time = "2025-09-05T13:38:16.22Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/50/3ae064870ae0e302909e215ba30a681d1ddc3c067c2242cae596c921817d/apify_shared-2.1.0-py3-none-any.whl", hash = "sha256:f6dacf375ae07fd72c1fa1daa64e5265b6cab1b05a98df077b7de0ec2077f7c3", size = 16489, upload-time = "2025-09-05T13:38:15.069Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -437,6 +461,21 @@ wheels = [
 ]
 
 [[package]]
+name = "impit"
+version = "0.9.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/90/3a532e477ad99f85d3a3eff909b83e6e74c895b4618771b6017a70955719/impit-0.9.3.tar.gz", hash = "sha256:09ce214caf91b2bede23babc9101ab2277623ab1c9cabe4c117ce3eb012e8b38", size = 127799, upload-time = "2025-11-26T16:06:45.691Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/c9/038ce257b4c3a4cbef0a9f98eb226c10cc403a0d23566723b89330acefb5/impit-0.9.3-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:d5da115887102985231787a27715e4c6f1fea4e5cca81cd320aff5b0a4c07d9e", size = 3995745, upload-time = "2025-11-26T16:05:34.629Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/03/4d9f8ed0625b9dc4a9593058ded7748de968881f77d8870882a552abda97/impit-0.9.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d2229607a7010c7318dcc8e3efa410ee65147a4e8ea6881e0603efcbc31c73b7", size = 3839085, upload-time = "2025-11-26T16:05:36.653Z" },
+    { url = "https://files.pythonhosted.org/packages/68/4d/6893387520f950fa156f9009f8e4349a2fd1cdf0d354d6384a5dc45a13fc/impit-0.9.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:72caaf74f809911ae98f19d90e9a8c17e8fee08e8f5055bd39eb5c7482a0b91b", size = 6251275, upload-time = "2025-11-26T16:05:38.459Z" },
+    { url = "https://files.pythonhosted.org/packages/06/28/635613364f37518dfb2fbcbaf834dd9aa8587122a42069b84cfb7539840d/impit-0.9.3-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:cacde67cbd34379c0b631a98d6424f375e3072aea2c8cc51774240447edc3672", size = 6293959, upload-time = "2025-11-26T16:05:40.484Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/00/37eedba207b43b24ea09c0238abfb2b03990db126d371e54d778e1de1183/impit-0.9.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:51c9a727af8ce35bcff647b512610d01b6e3058f72da40705274df828bba93ef", size = 6680892, upload-time = "2025-11-26T16:05:42.126Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/65/e5549fef4daa0f5787eef3ecd22208a745dc9f87252dd8872420a1608026/impit-0.9.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:36719bf526f52b5c54f550808070ecc9c4adbaac93c3bcc1e81fd4bd5b8d5456", size = 6475959, upload-time = "2025-11-26T16:05:44.864Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/eb/cfcf181bd506c69d1677186109698d0c905ab510eee483dd70c1aa144898/impit-0.9.3-cp311-cp311-win_amd64.whl", hash = "sha256:c984f0ce9b6a903b30d5a7f8e44024d4cfc120509287d8df728efc2777aa24ba", size = 4031916, upload-time = "2025-11-26T16:05:46.464Z" },
+]
+
+[[package]]
 name = "jiter"
 version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -497,6 +536,7 @@ name = "linebot-inspiration-assistant"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "apify-client" },
     { name = "fastapi" },
     { name = "google-api-python-client" },
     { name = "google-auth-httplib2" },
@@ -513,6 +553,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "apify-client", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "google-api-python-client", specifier = ">=2.187.0" },
     { name = "google-auth-httplib2", specifier = ">=0.3.0" },
@@ -572,6 +613,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d9/cb/c9c5bb2a9c47292e236a808dd233a03531f53b626f36259dcd32b49c76da/lxml_html_clean-0.4.3.tar.gz", hash = "sha256:c9df91925b00f836c807beab127aac82575110eacff54d0a75187914f1bd9d8c", size = 21498, upload-time = "2025-10-02T20:49:24.895Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/4a/63a9540e3ca73709f4200564a737d63a4c8c9c4dd032bab8535f507c190a/lxml_html_clean-0.4.3-py3-none-any.whl", hash = "sha256:63fd7b0b9c3a2e4176611c2ca5d61c4c07ffca2de76c14059a81a2825833731e", size = 14177, upload-time = "2025-10-02T20:49:23.749Z" },
+]
+
+[[package]]
+name = "more-itertools"
+version = "10.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/5d/38b681d3fce7a266dd9ab73c66959406d565b3e85f21d5e66e1181d93721/more_itertools-10.8.0.tar.gz", hash = "sha256:f638ddf8a1a0d134181275fb5d58b086ead7c6a72429ad725c67503f13ba30bd", size = 137431, upload-time = "2025-09-02T15:23:11.018Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/8e/469e5a4a2f5855992e425f3cb33804cc07bf18d48f2db061aec61ce50270/more_itertools-10.8.0-py3-none-any.whl", hash = "sha256:52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b", size = 69667, upload-time = "2025-09-02T15:23:09.635Z" },
 ]
 
 [[package]]

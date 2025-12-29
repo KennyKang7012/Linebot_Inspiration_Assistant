@@ -151,3 +151,24 @@
     - [x] 驗證指定 ID 可正常使用
     - [x] 驗證其他 ID 被阻擋
     - [x] 更新 `walkthrough.md`
+
+---
+
+# Apify 爬蟲功能增強 (新增於 2025-12-30)
+
+- [x] 規劃與設定 (PLANNING)
+    - [x] 研究 Apify API 整合方式
+    - [x] 選擇適合的 Apify Actors (Facebook Posts Scraper, Website Content Crawler)
+    - [x] 規劃 Facebook 與一般網頁的爬取邏輯
+- [x] 實作開發 (EXECUTION)
+    - [x] 新增 `apify-client` 依賴套件
+    - [x] 在 `.env` 中新增 `APIFY_API_KEY`
+    - [x] 實作 `crawl_facebook_post` 函式 (使用 apify/facebook-posts-scraper)
+    - [x] 實作 `crawl_general_url` 函式 (使用 apify/website-content-crawler)
+    - [x] 更新 `handle_message` 以支援 Facebook 網址偵測與分類
+    - [x] 實作回退機制 (Apify 失敗時使用 trafilatura)
+- [x] 驗證與測試 (VERIFICATION)
+    - [x] 測試 Facebook 公開貼文爬取
+    - [x] 測試一般網頁爬取 (新聞、部落格等)
+    - [x] 驗證 Notion 紀錄類型正確 (FB 筆記 vs 網頁筆記)
+    - [x] 更新開發文件至 `docs` 資料夾

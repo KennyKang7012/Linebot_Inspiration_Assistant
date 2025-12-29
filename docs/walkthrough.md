@@ -379,3 +379,105 @@ render_diffs(file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_A
 ## 驗證結果
 - [x] **設定生效測試**: 修改 `.env` 後確認系統不需完全重啟即可讀取新值。
 - [x] **Notion Validation**: 確認資料庫 ID 讀取正確，不再發生 UUID 驗證失敗。
+
+---
+
+# 實作紀錄 - Apify 爬蟲功能增強 (新增於 2025-12-30)
+
+我們成功整合了 Apify 平台的專業爬蟲服務,大幅提升了網頁內容擷取的成功率,特別是針對 Facebook 貼文和需要 JavaScript 渲染的動態網頁。
+
+## 主要變更
+
+### 1. Apify 平台整合
+- 整合 `apify-client` Python SDK
+- 支援多種 Apify Actors 以應對不同類型的網頁
+- 實作智慧回退機制:Apify 失敗時自動使用 trafilatura
+
+### 2. Facebook 貼文專用爬蟲
+**實作函式**: `crawl_facebook_post(url)`
+- 使用 Apify Actor: `apify/facebook-posts-scraper`
+- 自動提取貼文關鍵資訊:
+  - 發布者名稱 (優先使用 `pageName`,其次 `user.name`)
+  - 發布時間 (支援 `time` 和 `timestamp` 欄位)
+  - 貼文內容 (支援 `text` 和 `message` 欄位)
+- 智慧錯誤提示:當內容為空時,自動提示可能原因 (非公開、私密社團等)
+
+### 3. 一般網頁爬蟲增強
+**實作函式**: `crawl_general_url(url)`
+- 使用 Apify Actor: `apify/website-content-crawler`
+- 支援 JavaScript 渲染的動態網頁
+- 自動移除 Cookie 警告等干擾元素
+- 輸出 Markdown 格式,保留文章結構
+
+### 4. 智慧網址分類系統
+更新 `handle_message` 函式,實作多層級爬取策略:
+```python
+if "facebook.com" in url or "fb.watch" in url:
+    content = crawl_facebook_post(url)  # Facebook 專用爬蟲
+    note_type = "FB 筆記"
+else:
+    content = crawl_general_url(url)    # Apify 一般爬蟲
+    if not content:
+        content = extract_url_content(url)  # 回退到 trafilatura
+    note_type = "網頁筆記"
+```
+
+### 5. 環境變數配置
+- 新增 `APIFY_API_KEY` 環境變數
+- 更新 `.env.example` 提供設定範例
+
+## 驗證結果
+
+### Facebook 貼文爬取測試
+- [x] **公開貼文**: 成功擷取發布者、時間與完整內容
+- [x] **格式化輸出**: 資訊結構清晰,易於閱讀
+- [x] **Notion 整合**: 正確標記為「FB 筆記」類型
+- [x] **錯誤處理**: 私密貼文或無效連結時給予適當提示
+
+### 一般網頁爬取測試
+- [x] **新聞網站**: 成功擷取文章內容 (測試對象: BBC, 科技新報等)
+- [x] **部落格文章**: 正確提取主要內容,過濾廣告與側邊欄
+- [x] **動態網頁**: 支援需要 JavaScript 的網站
+- [x] **回退機制**: Apify 失敗時自動切換到 trafilatura
+
+### 端到端整合驗證
+- [x] **AI 摘要**: 爬取內容成功傳遞給 OpenAI 進行摘要
+- [x] **Notion 儲存**: 完整內容與摘要正確存入資料庫
+- [x] **類型區分**: Facebook 與一般網頁正確分類
+- [x] **Line ID 記錄**: 使用者識別碼正確同步
+
+## 技術亮點
+
+### 多層級回退策略
+系統實作了三層爬取機制,確保最大的成功率:
+1. **第一層**: Apify 專業爬蟲 (支援 JavaScript、反爬蟲機制)
+2. **第二層**: Trafilatura 輕量爬蟲 (適合靜態網頁)
+3. **第三層**: 錯誤處理與使用者提示
+
+### 成本優化
+- 僅在必要時調用 Apify (Facebook 或 trafilatura 失敗時)
+- 設定 `maxComments: 0` 避免爬取不必要的留言
+- 限制 `maxCrawlPages: 1` 確保只爬取目標頁面
+
+### 使用者體驗提升
+- Facebook 貼文格式化顯示,包含發布者與時間
+- 錯誤訊息具體明確,協助使用者理解問題
+- 回退機制透明,使用者無感切換
+
+## 已知限制與建議
+
+> [!NOTE]
+> **Facebook 爬取限制**
+> - 僅支援公開貼文
+> - 私密社團或好友限定貼文無法存取
+> - 建議使用標準永久連結而非短網址
+
+> [!TIP]
+> **Apify 免費額度**
+> - Apify 提供每月免費額度
+> - 建議定期檢查用量: [Apify Console](https://console.apify.com/)
+> - 超過額度後會自動回退到 trafilatura
+
+---
+
+*最後更新: 2025-12-30*

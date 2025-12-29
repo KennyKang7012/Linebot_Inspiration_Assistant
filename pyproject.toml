@@ -17,4 +17,5 @@ dependencies = [
     "google-auth-oauthlib>=1.2.3",
     "pytz>=2025.2",
     "trafilatura>=2.0.0",
+    "apify-client>=2.3.0",
 ]

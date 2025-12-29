@@ -447,3 +447,120 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 ### 手動驗證
 1. 使用 ID 為 `U4504155baed0514607af81f92b439900` 的帳號發送訊息，確認一切運作正常。
 2. 使用其他帳號發送訊息，確認機器人回覆權限不足訊息且不執行爬取或儲存動作。
+
+---
+
+# Apify 爬蟲功能增強實作計畫 (新增於 2025-12-30)
+
+本計畫旨在增強網頁爬取能力，特別針對 Facebook 貼文和需要 JavaScript 渲染的動態網頁，透過整合 Apify 平台的專業爬蟲服務來提升內容擷取的成功率與品質。
+
+## 需要使用者審查
+
+> [!IMPORTANT]
+> **Apify API 金鑰需求**
+> - 需要註冊 Apify 帳號並取得 API Token: [https://console.apify.com/account/integrations](https://console.apify.com/account/integrations)
+> - Apify 提供免費方案，每月有一定額度的免費爬取次數
+> - 將 API Token 設定於 `.env` 檔案中的 `APIFY_API_KEY` 變數
+
+> [!WARNING]
+> **Facebook 爬取限制**
+> - 僅能爬取**公開貼文**，私密貼文或社團貼文可能無法存取
+> - 建議使用標準的 Facebook 永久連結 (例如: `https://www.facebook.com/username/posts/123456`)
+> - 短網址 (如 `fb.watch`) 可能導致爬取結果不完整
+
+## 預計變更
+
+### 依賴套件
+#### [MODIFY] [pyproject.toml](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/pyproject.toml)
+- 新增 `apify-client` 套件
+
+### 環境變數
+#### [MODIFY] [.env](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env)
+- 新增 `APIFY_API_KEY` 欄位
+
+#### [MODIFY] [.env.example](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/.env.example)
+- 新增 `APIFY_API_KEY` 範例供參考
+
+### [Component] LINE Bot 核心邏輯
+#### [MODIFY] [app.py](file:///Users/kennykang/Desktop/VibeProj/Anti/Linebot_Inspiration_Assistant/app.py)
+
+**新增匯入**:
+```python
+from apify_client import ApifyClient
+```
+
+**初始化 Apify 客戶端**:
+```python
+apify_client = ApifyClient(apify_api_key) if apify_api_key else None
+```
+
+**新增 `crawl_facebook_post(url)` 函式**:
+- 使用 Apify Actor: `apify/facebook-posts-scraper`
+- 輸入參數:
+  - `startUrls`: 包含目標 Facebook 貼文網址
+  - `resultsLimit`: 1 (僅爬取單一貼文)
+  - `maxComments`: 0 (不爬取留言以節省配額)
+  - `proxy`: 使用 Apify 代理伺服器
+- 輸出格式化:
+  - 提取發布者名稱 (`pageName` 或 `user.name`)
+  - 提取發布時間 (`time` 或 `timestamp`)
+  - 提取貼文內容 (`text` 或 `message`)
+  - 若內容為空，提示可能的原因 (非公開、私密社團等)
+
+**新增 `crawl_general_url(url)` 函式**:
+- 使用 Apify Actor: `apify/website-content-crawler`
+- 輸入參數:
+  - `startUrls`: 包含目標網頁網址
+  - `maxCrawlPages`: 1 (僅爬取單一頁面)
+  - `onlySubdomain`: True (限制在同一子網域)
+  - `removeCookieWarnings`: True (移除 Cookie 警告)
+- 輸出: 返回 Markdown 格式或純文字內容
+
+**更新 `handle_message` 函式**:
+- 在網址偵測邏輯中加入 Facebook 判斷:
+  ```python
+  if "facebook.com" in url or "fb.watch" in url:
+      content = crawl_facebook_post(url)
+      note_type = "FB 筆記"
+  else:
+      # 先嘗試使用 Apify，失敗則回退到 trafilatura
+      content = crawl_general_url(url)
+      if not content:
+          content = extract_url_content(url)
+      note_type = "網頁筆記"
+  ```
+
+## 驗證計畫
+
+### 自動化測試
+- 無 (目前以手動測試為主)
+
+### 手動驗證
+
+#### Facebook 貼文測試
+1. 在 LINE 發送一個公開的 Facebook 貼文連結
+2. 確認機器人回覆包含:
+   - 發布者名稱
+   - 發布時間
+   - 貼文內容
+   - AI 生成的摘要
+3. 檢查 Notion 資料庫:
+   - 「類型」欄位為「FB 筆記」
+   - 「URL」欄位包含原始 Facebook 連結
+   - 頁面內容包含完整的貼文資訊
+
+#### 一般網頁測試
+1. 在 LINE 發送一個新聞或部落格網址
+2. 確認使用 Apify 爬取成功 (或回退到 trafilatura)
+3. 確認摘要品質與 Notion 儲存正確
+
+#### 回退機制測試
+1. 暫時停用 Apify API Key (註解或移除)
+2. 發送網址，確認系統自動使用 trafilatura
+3. 確認功能仍正常運作
+
+#### 錯誤處理測試
+1. 發送私密 Facebook 貼文連結
+2. 確認系統回覆適當的錯誤訊息
+3. 發送無效或無法存取的網址
+4. 確認系統不會崩潰並給予適當回饋

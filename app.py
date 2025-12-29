@@ -37,6 +37,7 @@ import base64
 import pytz
 import re
 import trafilatura
+from apify_client import ApifyClient
 
 # 設定時區為台灣
 TW_TIMEZONE = pytz.timezone('Asia/Taipei')
@@ -60,6 +61,7 @@ notion_api_key = os.getenv('NOTION_API_KEY')
 notion_database_id = os.getenv('NOTION_DATABASE_ID')
 google_drive_folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1yeIYLXlEhDACEqARMWBfBUJpzlYFgPHy')
 allowed_line_id = os.getenv('ALLOWED_LINE_ID')
+apify_api_key = os.getenv('APIFY_API_KEY')
 
 # Google Drive 權限範圍
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -72,6 +74,7 @@ configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 notion = Client(auth=notion_api_key) if notion_api_key else None
+apify_client = ApifyClient(apify_api_key) if apify_api_key else None
 
 def is_allowed(user_id):
     """檢查使用者是否在白名單中"""
@@ -203,6 +206,79 @@ def extract_url_content(url):
         return None
     except Exception as e:
         print(f"Error extracting URL content: {e}")
+        return None
+
+def crawl_facebook_post(url):
+    """使用 Apify 爬取 Facebook 貼文內容"""
+    if not apify_client:
+        print("Apify API key not set.")
+        return None
+    
+    try:
+        # 準備輸入參數
+        run_input = {
+            "startUrls": [{"url": url}],
+            "resultsLimit": 1,
+            "maxPosts": 1,
+            "maxComments": 0,
+            "proxy": {"useApifyProxy": True}
+        }
+        
+        # 執行 Actor (apify/facebook-posts-scraper)
+        run = apify_client.actor("apify/facebook-posts-scraper").call(run_input=run_input)
+        
+        # 取得結果
+        items = list(apify_client.dataset(run["defaultDatasetId"]).iterate_items())
+        if items:
+            post = items[0]
+            # 組合貼文內容 (根據 Apify 實際輸出結構調整)
+            # 優先使用 pageName, 其次是 user.name
+            author = post.get('pageName') or post.get('user', {}).get('name') or "未知發布者"
+            
+            # 優先使用 text, 其次是 message
+            text_content = post.get('text') or post.get('message') or "(無文字內容)"
+            
+            content = f"【Facebook 貼文內容】\n"
+            content += f"發布者: {author}\n"
+            content += f"發布時間: {post.get('time', post.get('timestamp', '未知'))}\n"
+            content += f"內容: {text_content}\n"
+            
+            # 如果內容為空，提示可能是權限問題
+            if text_content == "(無文字內容)":
+                content += "\n(註：若內容為空，可能是因為貼文非公開、來自私密社團，或該網址為分享短網址。建議提供標準永久連結且確保貼文設為公開。)\n"
+            
+            return content
+        return None
+    except Exception as e:
+        print(f"Error crawling Facebook: {e}")
+        return None
+
+def crawl_general_url(url):
+    """使用 Apify 爬取一般網頁內容"""
+    if not apify_client:
+        print("Apify API key not set.")
+        return None
+    
+    try:
+        # 準備輸入參數 (使用 website-content-crawler)
+        run_input = {
+            "startUrls": [{"url": url}],
+            "maxCrawlPages": 1,
+            "onlySubdomain": True,
+            "removeCookieWarnings": True,
+        }
+        
+        # 執行 Actor
+        run = apify_client.actor("apify/website-content-crawler").call(run_input=run_input)
+        
+        # 取得結果
+        items = list(apify_client.dataset(run["defaultDatasetId"]).iterate_items())
+        if items:
+            # 提取主要內容
+            return items[0].get('markdown') or items[0].get('text')
+        return None
+    except Exception as e:
+        print(f"Error crawling general URL: {e}")
         return None
 
 def save_to_notion(text, summary, note_type="語音筆記", url=None, line_id=None):
@@ -354,14 +430,23 @@ def handle_message(event):
     
     if url_match:
         url = url_match.group(0)
-        # 1. 爬取內容
-        content = extract_url_content(url)
+        # 判斷網址類型
+        if "facebook.com" in url or "fb.watch" in url:
+            content = crawl_facebook_post(url)
+            note_type = "FB 筆記"
+        else:
+            # 先試試 Apify，失敗則回退到 trafilatura
+            content = crawl_general_url(url)
+            if not content:
+                content = extract_url_content(url)
+            note_type = "網頁筆記"
+
         if content:
             # 2. 摘要內容
             summary = summarize_text(content)
             # 3. 儲存到 Notion
-            save_to_notion(content, summary, note_type="網頁筆記", url=url, line_id=event.source.user_id)
-            reply_text = f"【網頁摘要】\n{summary}"
+            save_to_notion(content, summary, note_type=note_type, url=url, line_id=event.source.user_id)
+            reply_text = f"【{note_type}摘要】\n{summary}"
         else:
             reply_text = "無法擷取該網址的內容。"
     

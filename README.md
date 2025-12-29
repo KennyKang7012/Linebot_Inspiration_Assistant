@@ -4,11 +4,14 @@
 
 ## ✨ 功能亮點
 
-- **語音轉文字**：整合 OpenAI Whisper API，自動將語音訊息轉換為繁體中文。
-- **AI 自動摘要**：使用 GPT-4o-mini 對長文本或語音內容進行重點擷取。
-- **Notion 雲端同步**：自動將原始內容與 AI 摘要同步至 Notion 資料庫。
-- **文字摘要指令**：支援在 LINE 中輸入 `/a` 指令快速總結文字資訊。
-- **長文本優化**：自動處理 Notion 2000 字元限制，將長內容完整寫入頁面正文區。
+- **語音轉文字**:整合 OpenAI Whisper API,自動將語音訊息轉換為繁體中文。
+- **AI 自動摘要**:使用 GPT-4o-mini 對長文本或語音內容進行重點擷取。
+- **Notion 雲端同步**:自動將原始內容與 AI 摘要同步至 Notion 資料庫。
+- **文字摘要指令**:支援在 LINE 中輸入 `/a` 指令快速總結文字資訊。
+- **圖片筆記**:自動辨識圖片內容並上傳至 Google Drive,同步至 Notion。
+- **網址爬取**:自動擷取網頁內容並生成摘要,支援 Facebook 貼文與一般網頁。
+- **Apify 爬蟲增強**:整合 Apify 平台,支援 JavaScript 渲染的動態網頁與 Facebook 公開貼文。
+- **長文本優化**:自動處理 Notion 2000 字元限制,將長內容完整寫入頁面正文區。
 
 ## 🚀 快速開始
 
@@ -17,20 +20,27 @@
 - 擁有 Line Messaging API 憑證 (Channel Secret, Access Token)。
 - 擁有 OpenAI API Key。
 - 擁有 Notion API Key 與目標 Database ID。
+- 擁有 Google Drive API 憑證 (credentials.json)。
+- (可選) 擁有 Apify API Token 以啟用進階爬蟲功能。
 
 ### 2. 環境設定
-編輯專案根目錄下的 `.env` 檔案：
+編輯專案根目錄下的 `.env` 檔案:
 ```text
 LINE_CHANNEL_SECRET=...
 LINE_CHANNEL_ACCESS_TOKEN=...
 OPENAI_API_KEY=...
 NOTION_API_KEY=...
 NOTION_DATABASE_ID=...
+GOOGLE_DRIVE_FOLDER_ID=...
+ALLOWED_LINE_ID=...
+APIPY_API_KEY=...  # 可選,用於進階網頁爬取
 ```
 
 ### 3. 使用方法
-- **語音筆記**：直接對 Bot 傳送語音訊息，系統會自動辨識、摘要並存入 Notion。
-- **文字摘要**：傳送 `/a [要摘要的文字]`，系統會回傳摘要並存入 Notion。
+- **語音筆記**:直接對 Bot 傳送語音訊息,系統會自動辨識、摘要並存入 Notion。
+- **圖片筆記**:傳送圖片給 Bot,系統會自動辨識內容、上傳至 Google Drive 並存入 Notion。
+- **文字摘要**:傳送 `/a [要摘要的文字]`,系統會回傳摘要並存入 Notion。
+- **網址爬取**:直接貼上網址 (支援 Facebook 貼文與一般網頁),系統會自動爬取、摘要並存入 Notion。
 
 ### 4. 啟動服務
 
